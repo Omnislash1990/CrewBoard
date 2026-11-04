@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if the requester is an admin
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      // Users can read their own profile; Admins can read everyone
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      
+      // Allow users to create their initial profile during sign-up
+      // but prevent them from setting their own role to 'admin'
+      allow create: if request.auth != null 
+                    && request.auth.uid == userId
+                    && request.resource.data.role == 'worker';
+                    
+      // Only admins can update user profiles (e.g., promoting someone to admin)
+      allow update, delete: if request.auth != null && isAdmin();
+    }
+
+    match /jobs/{jobId} {
+      // Admins have full CRUD access to all jobs
+      allow read, write: if request.auth != null && isAdmin();
+      
+      // Workers can only read jobs where their UID is in the assignedWorkerIds array
+      allow read: if request.auth != null 
+                  && request.auth.uid in resource.data.assignedWorkerIds;
+                  
+      // Workers can only update the 'status' field of their assigned jobs
+      allow update: if request.auth != null
+                    && request.auth.uid in resource.data.assignedWorkerIds
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+    }
+  }
+}
