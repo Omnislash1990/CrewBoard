@@ -3,15 +3,18 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Logo } from "@/components/brand/Logo";
 import { Spinner } from "@/components/ui/Spinner";
+import {
+  authErrorMessage,
+  missingFirebaseConfigMessage,
+} from "@/lib/auth/errors";
 import { registerTradeWorker } from "@/lib/auth/register";
 import { homePathForRole } from "@/lib/auth/session-payload";
 
 export function RegisterForm() {
-  const { configured, loading, profile } = useAuth();
+  const { configured, loading, profile, error: profileError } = useAuth();
   const router = useRouter();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -19,6 +22,9 @@ export function RegisterForm() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const visibleError = formError ?? profileError;
+  const creating = (submitting || loading) && !visibleError;
 
   useEffect(() => {
     if (!profile) return;
@@ -38,7 +44,7 @@ export function RegisterForm() {
     );
 
     if (!result.success) {
-      setFormError(registerErrorMessage(result.error));
+      setFormError(authErrorMessage(result.error, "register"));
       setSubmitting(false);
     }
   }
@@ -59,7 +65,7 @@ export function RegisterForm() {
 
         {!configured ? (
           <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            Add your Firebase keys to <code>.env.local</code> before registering.
+            {missingFirebaseConfigMessage}
           </div>
         ) : null}
 
@@ -118,18 +124,18 @@ export function RegisterForm() {
             />
           </label>
 
-          {formError ? (
+          {visibleError ? (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
-              {formError}
+              {visibleError}
             </p>
           ) : null}
 
           <button
             type="submit"
-            disabled={!configured || submitting || loading}
+            disabled={!configured || creating}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-2.5 font-semibold text-white transition hover:bg-orange-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitting || loading ? <Spinner className="h-4 w-4" /> : null}
+            {creating ? <Spinner className="h-4 w-4" /> : null}
             Create account
           </button>
         </form>
@@ -145,18 +151,3 @@ export function RegisterForm() {
   );
 }
 
-function registerErrorMessage(error: unknown) {
-  if (error instanceof FirebaseError) {
-    switch (error.code) {
-      case "auth/email-already-in-use":
-        return "That email already has an account. Sign in instead.";
-      case "auth/weak-password":
-        return "Use at least 6 characters for the password.";
-      case "auth/invalid-email":
-        return "Enter a valid email address.";
-      default:
-        return "Could not create the account. Try again.";
-    }
-  }
-  return "Could not create the account. Try again.";
-}

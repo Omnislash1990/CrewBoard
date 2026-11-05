@@ -9,13 +9,17 @@ import {
   useState,
 } from "react";
 import {
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut as firebaseSignOut,
   type User,
 } from "firebase/auth";
 import { isFirebaseConfigured, tryGetFirebase } from "@/lib/firebase/client";
-import { fetchUserProfileWithRetry } from "@/lib/firebase/users";
+import { loadOrCreateWorkerProfile } from "@/lib/firebase/users";
+import { authErrorMessage } from "@/lib/auth/errors";
+import { waitForProfileWrite } from "@/lib/auth/profile-write";
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session-client";
 import type { AppUser } from "@/types";
 
@@ -26,6 +30,7 @@ type AuthContextValue = {
   configured: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -45,8 +50,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(firebase.auth, async (nextUser) => {
-      setError(null);
-
       if (!nextUser) {
         setUser(null);
         setProfile(null);
@@ -56,27 +59,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setUser(nextUser);
+      setLoading(true);
 
       try {
-        const nextProfile = await fetchUserProfileWithRetry(
-          firebase.db,
-          nextUser.uid,
-        );
-        setProfile(nextProfile);
-
-        if (nextProfile) {
-          setSessionCookie({ uid: nextProfile.uid, role: nextProfile.role });
-        } else {
-          clearSessionCookie();
-          setError(
-            "This login has no CrewBoard profile. Ask an admin to add a users document for this account.",
-          );
+        try {
+          await waitForProfileWrite();
+        } catch (writeError) {
+          console.error(writeError);
         }
+
+        const nextProfile = await loadOrCreateWorkerProfile(
+          firebase.db,
+          nextUser,
+        );
+
+        setProfile(nextProfile);
+        setSessionCookie({ uid: nextProfile.uid, role: nextProfile.role });
+        setError(null);
       } catch (err) {
         console.error(err);
         setProfile(null);
         clearSessionCookie();
-        setError("Could not load your CrewBoard profile.");
+        setError(authErrorMessage(err, "profile"));
       } finally {
         setLoading(false);
       }
@@ -94,6 +98,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(firebase.auth, email, password);
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    const firebase = tryGetFirebase();
+    if (!firebase) {
+      throw new Error("Firebase is not configured.");
+    }
+    setError(null);
+    await signInWithPopup(firebase.auth, new GoogleAuthProvider());
+  }, []);
+
   const signOut = useCallback(async () => {
     const firebase = tryGetFirebase();
     clearSessionCookie();
@@ -102,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setUser(null);
     setProfile(null);
+    setError(null);
   }, []);
 
   const value = useMemo(
@@ -112,9 +126,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       configured,
       error,
       signIn,
+      signInWithGoogle,
       signOut,
     }),
-    [user, profile, loading, configured, error, signIn, signOut],
+    [
+      user,
+      profile,
+      loading,
+      configured,
+      error,
+      signIn,
+      signInWithGoogle,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

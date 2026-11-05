@@ -1,37 +1,32 @@
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
 import { getFirebase } from "@/lib/firebase/config";
-import { AppUser } from "@/types";
+import { loadOrCreateWorkerProfile } from "@/lib/firebase/users";
+import { beginProfileWrite } from "@/lib/auth/profile-write";
+import type { AppUser } from "@/types";
 
 export async function registerTradeWorker(
   email: string,
   password: string,
   name: string,
   phone: string,
-) {
+): Promise<{ success: true; user: AppUser } | { success: false; error: unknown }> {
+  const gate = beginProfileWrite();
+
   try {
     const { auth, db } = getFirebase();
-
-    // 1. Create the Auth account
     const userCredential = await createUserWithEmailAndPassword(
       auth,
       email,
       password,
     );
-    const user = userCredential.user;
-
-    // 2. Create the Firestore user document
-    const userData: AppUser = {
-      uid: user.uid,
+    const user = await loadOrCreateWorkerProfile(db, userCredential.user, {
       name,
-      email,
       phone,
-      role: "worker", // Defaults to worker per security rules
-    };
-
-    await setDoc(doc(db, "users", user.uid), userData);
-    return { success: true, user: userData };
+    });
+    gate.resolve();
+    return { success: true, user };
   } catch (error) {
+    gate.reject(error);
     console.error("Registration error:", error);
     return { success: false, error };
   }

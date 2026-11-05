@@ -1,14 +1,29 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  connectAuthEmulator,
+  getAuth,
+  type Auth,
+} from "firebase/auth";
+import {
+  connectFirestoreEmulator,
+  getFirestore,
+  type Firestore,
+} from "firebase/firestore";
+
+function readPublicEnv(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: readPublicEnv(process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
+  authDomain: readPublicEnv(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
+  projectId: readPublicEnv(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
+  storageBucket: readPublicEnv(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: readPublicEnv(
+    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  ),
+  appId: readPublicEnv(process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
 };
 
 export function isFirebaseConfigured() {
@@ -35,11 +50,10 @@ export function getFirebase(): FirebaseClients {
 
   if (!clients) {
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    clients = {
-      app,
-      auth: getAuth(app),
-      db: getFirestore(app),
-    };
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    connectLocalEmulators(auth, db);
+    clients = { app, auth, db };
   }
 
   return clients;
@@ -48,4 +62,16 @@ export function getFirebase(): FirebaseClients {
 export function tryGetFirebase() {
   if (!isFirebaseConfigured()) return null;
   return getFirebase();
+}
+
+function connectLocalEmulators(auth: Auth, db: Firestore) {
+  if (
+    process.env.NODE_ENV !== "development" ||
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR !== "1"
+  ) {
+    return;
+  }
+
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
 }

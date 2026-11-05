@@ -15,13 +15,18 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Fill `.env.local` from the Firebase project settings (Authentication → Email/Password, plus Firestore).
+Fill `.env.local` from the Firebase project settings (Authentication → Email/Password and Google, plus Firestore).
+
+Local sign-up can be exercised without the cloud project by running the Auth and Firestore emulators (`npx firebase emulators:start --only auth,firestore --project <project-id>`) and setting `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=1` in `.env.local`. That flag is ignored outside `next dev`.
 
 ## Firebase setup
 
-1. Create a Firebase project and enable **Email/Password** auth.
-2. Create Firestore in production mode, then deploy the rules in `firestore.rules`.
-3. Create Auth users, then matching documents in the `users` collection:
+1. Create a Firebase project. Enable **Email/Password** and **Google** under Authentication → Sign-in method.
+2. Under Authentication → Settings → Authorised domains, add every host that serves the app (`localhost` is usually already there). For this deployment add `crew-board-chi.vercel.app`, plus each Vercel preview host you use. Firebase does not accept a wildcard for `*.vercel.app`.
+3. Google sign-in finishes on the Firebase handler, not on the Vercel URL. The OAuth redirect URI is `https://<project-id>.firebaseapp.com/__/auth/handler`. Enabling Google in the Firebase console normally adds that URI to the OAuth client. Do not replace it with the Vercel domain.
+4. Create the Cloud Firestore **default** database, then deploy the rules in `firestore.rules`.
+5. Copy the web app config into `.env.local` and into Vercel as `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, and `NEXT_PUBLIC_FIREBASE_APP_ID`. Set them for Production and Preview. Changing them requires a new deployment, because Next inlines `NEXT_PUBLIC_*` at build time. `authDomain` stays `<project-id>.firebaseapp.com`.
+6. Create Auth users, then matching documents in the `users` collection **before** that person signs in if they must be an admin. The first successful sign-in creates a `worker` profile when no document exists, and workers cannot promote themselves:
 
 ```json
 {
@@ -34,7 +39,7 @@ Fill `.env.local` from the Firebase project settings (Authentication → Email/P
 
 Worker documents use `"role": "worker"`. The document ID must be the Auth UID.
 
-4. Jobs are written by the admin Toggl parser:
+7. Jobs are written by the admin Toggl parser:
 
 ```json
 {
