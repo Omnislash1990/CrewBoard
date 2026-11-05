@@ -1,21 +1,16 @@
 "use client";
 
-import React, { Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  type User,
-} from "firebase/auth";
-import { FirebaseError } from "firebase/app";
-import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getFirebase, isFirebaseConfigured } from "@/lib/firebase/config";
-import { setSessionCookie } from "@/lib/auth/session-client";
-import { homePathForRole } from "@/lib/auth/session-payload";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { Logo } from "@/components/brand/Logo";
-import type { AppUser } from "@/types";
+import { Spinner } from "@/components/ui/Spinner";
+import {
+  authErrorMessage,
+  missingFirebaseConfigMessage,
+} from "@/lib/auth/errors";
+import { homePathForRole } from "@/lib/auth/session-payload";
 
 export default function LoginPage() {
   return (
@@ -32,43 +27,25 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
+  const {
+    signIn,
+    signInWithGoogle,
+    configured,
+    loading,
+    profile,
+    error: profileError,
+  } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const configured = isFirebaseConfigured();
+  const visibleError = formError ?? profileError;
+  const signingIn = isLoading && !visibleError;
 
-  const ensureFirestoreProfile = async (user: User): Promise<AppUser> => {
-    const { db } = getFirebase();
-    const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
-
-    if (!userSnap.exists()) {
-      const newUserData: AppUser = {
-        uid: user.uid,
-        name: user.displayName || "New Worker",
-        email: user.email || "",
-        phone: user.phoneNumber || "",
-        role: "worker",
-      };
-      await setDoc(userRef, newUserData);
-      return newUserData;
-    }
-
-    const data = userSnap.data();
-    return {
-      uid: user.uid,
-      name: typeof data.name === "string" ? data.name : user.displayName || "",
-      email: typeof data.email === "string" ? data.email : user.email || "",
-      phone: typeof data.phone === "string" ? data.phone : user.phoneNumber || "",
-      role: data.role === "admin" ? "admin" : "worker",
-    };
-  };
-
-  const redirectAfterAuth = (profile: AppUser) => {
-    setSessionCookie({ uid: profile.uid, role: profile.role });
+  useEffect(() => {
+    if (!profile) return;
     const next = searchParams.get("next");
     const fallback = homePathForRole(profile.role);
     const target =
@@ -78,45 +55,38 @@ function LoginForm() {
         ? next
         : fallback;
     router.replace(target);
-  };
+  }, [profile, router, searchParams]);
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function handleEmailLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setIsLoading(true);
-    setError(null);
+    setFormError(null);
     try {
-      const { auth } = getFirebase();
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password,
-      );
-      const profile = await ensureFirestoreProfile(userCredential.user);
-      redirectAfterAuth(profile);
-    } catch {
-      setError("Invalid email or password. Please try again.");
+      await signIn(email.trim(), password);
+    } catch (error) {
+      setFormError(authErrorMessage(error, "sign-in"));
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleGoogleLogin = async () => {
+  async function handleGoogleLogin() {
     setIsLoading(true);
-    setError(null);
+    setFormError(null);
     try {
-      const { auth } = getFirebase();
-      const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-      const profile = await ensureFirestoreProfile(userCredential.user);
-      redirectAfterAuth(profile);
-    } catch (err) {
-      setError(
-        err instanceof FirebaseError
-          ? googleErrorMessage(err)
-          : "Google sign-in failed.",
+      await signInWithGoogle();
+    } catch (error) {
+      setFormError(
+        authErrorMessage(
+          error,
+          "google",
+          typeof window === "undefined" ? undefined : window.location.host,
+        ),
       );
       setIsLoading(false);
     }
-  };
+  }
+
+  const busy = signingIn || (loading && !visibleError);
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-stone-50 px-4">
@@ -135,49 +105,58 @@ function LoginForm() {
 
         {!configured ? (
           <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-            Add your Firebase keys to <code>.env.local</code> before signing in.
+            {missingFirebaseConfigMessage}
           </div>
         ) : null}
 
-        {error ? (
+        {visibleError ? (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            {error}
+            {visibleError}
           </div>
         ) : null}
 
         <form onSubmit={handleEmailLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-stone-700">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-stone-700"
+            >
               Email
             </label>
             <input
+              id="email"
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               className="mt-1 w-full rounded-lg border border-stone-300 p-2.5 text-sm outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-stone-700"
+            >
               Password
             </label>
             <input
+              id="password"
               type="password"
               autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               className="mt-1 w-full rounded-lg border border-stone-300 p-2.5 text-sm outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
               required
             />
           </div>
           <button
             type="submit"
-            disabled={isLoading || !configured}
-            className="w-full rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-50"
+            disabled={busy || !configured}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-50"
           >
-            {isLoading ? "Signing in..." : "Sign in with Email"}
+            {signingIn ? <Spinner className="h-4 w-4" /> : null}
+            {signingIn ? "Signing in..." : "Sign in with Email"}
           </button>
         </form>
 
@@ -192,8 +171,8 @@ function LoginForm() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          disabled={isLoading || !configured}
-          className="flex w-full items-center justify-center space-x-2 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
+          disabled={busy || !configured}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
             <path
@@ -228,17 +207,4 @@ function LoginForm() {
       </div>
     </div>
   );
-}
-
-function googleErrorMessage(err: FirebaseError) {
-  switch (err.code) {
-    case "auth/popup-closed-by-user":
-      return "Google sign-in was cancelled.";
-    case "auth/popup-blocked":
-      return "The sign-in popup was blocked. Allow popups and try again.";
-    case "auth/account-exists-with-different-credential":
-      return "That email already has an account. Sign in with email instead.";
-    default:
-      return "Google sign-in failed.";
-  }
 }

@@ -1,4 +1,6 @@
-import { doc, getDoc, type Firestore } from "firebase/firestore";
+import { FirebaseError } from "firebase/app";
+import { doc, getDoc, setDoc, type Firestore } from "firebase/firestore";
+import type { User } from "firebase/auth";
 import type { AppUser, UserRole } from "@/types";
 
 export async function fetchUserProfile(
@@ -20,18 +22,56 @@ export async function fetchUserProfile(
   };
 }
 
-export async function fetchUserProfileWithRetry(
+export async function loadOrCreateWorkerProfile(
   db: Firestore,
-  uid: string,
-  attempts = 6,
-  delayMs = 200,
-): Promise<AppUser | null> {
-  for (let i = 0; i < attempts; i++) {
-    const profile = await fetchUserProfile(db, uid);
-    if (profile) return profile;
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  user: User,
+  details?: { name?: string; phone?: string },
+) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await ensureWorkerProfile(db, user, details);
+    } catch (error) {
+      lastError = error;
+      const retry =
+        error instanceof FirebaseError &&
+        (error.code === "permission-denied" ||
+          error.code === "unauthenticated");
+      if (!retry || attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+    }
   }
-  return null;
+
+  throw lastError;
+}
+
+export async function ensureWorkerProfile(
+  db: Firestore,
+  user: User,
+  details?: { name?: string; phone?: string },
+): Promise<AppUser> {
+  const existing = await fetchUserProfile(db, user.uid);
+  if (existing) return existing;
+
+  const userData: AppUser = {
+    uid: user.uid,
+    name: details?.name?.trim() || user.displayName || "New Worker",
+    email: user.email || "",
+    phone: details?.phone?.trim() || user.phoneNumber || "",
+    role: "worker",
+  };
+
+  try {
+    await setDoc(doc(db, "users", user.uid), userData);
+    return userData;
+  } catch (error) {
+    if (error instanceof FirebaseError && error.code === "permission-denied") {
+      const raced = await fetchUserProfile(db, user.uid);
+      if (raced) return raced;
+    }
+    throw error;
+  }
 }
 
 export function userFromDoc(
