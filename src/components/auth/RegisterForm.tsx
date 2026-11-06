@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Logo } from "@/components/brand/Logo";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Spinner } from "@/components/ui/Spinner";
 import {
   authErrorMessage,
@@ -109,12 +110,15 @@ export function RegisterForm() {
               className={fieldClass}
             />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-stone-700">
+          <div>
+            <label
+              htmlFor="password"
+              className="mb-1.5 block text-sm font-medium text-stone-700"
+            >
               Password
-            </span>
-            <input
-              type="password"
+            </label>
+            <PasswordInput
+              id="password"
               autoComplete="new-password"
               required
               minLength={6}
@@ -122,7 +126,7 @@ export function RegisterForm() {
               onChange={(event) => setPassword(event.target.value)}
               className={fieldClass}
             />
-          </label>
+          </div>
 
           {visibleError ? (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
