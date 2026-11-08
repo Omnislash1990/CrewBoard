@@ -39,7 +39,7 @@ Local sign-up can be exercised without the cloud project by running the Auth and
 
 Worker documents use `"role": "worker"`. The document ID must be the Auth UID.
 
-7. Jobs are written by the admin Toggl parser in the browser. `POST /api/jobs` accepts `{ jobTitle, client, workerIds }` and validates that body, but it does not write. Stephen must add Firebase Admin credentials before that route can persist jobs. Do not commit a service account, and do not point the Toggl save button at the route until a server writer exists.
+7. Jobs are written by the admin Toggl parser in the browser. After a job is saved, the parser POSTs `{ jobTitle, client, workerIds }` to `/api/notify-worker`, which logs the payload and returns 200. A Make.com webhook or Twilio `fetch` can be added in that route later. It does not write to Firestore.
 
 ```json
 {
@@ -67,6 +67,6 @@ Client - Job - Time - Notes
 | `/login` | Public | Email/password |
 | `/admin` | `admin` | Desktop dispatch board + Toggl parser |
 | `/rota` | `worker` | Mobile rota PWA |
-| `POST /api/jobs` | Unauthenticated contract | Validates `{ jobTitle, client, workerIds }`. Returns 202 and does not write to Firestore. |
+| `POST /api/notify-worker` | Dispatch notification | Validates `{ jobTitle, client, workerIds }`, logs the payload, and returns 200. |
 
 Role cookies are set after login so `src/proxy.ts` can redirect. Layouts still re-check the Firestore profile.

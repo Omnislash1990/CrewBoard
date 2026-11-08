@@ -48,7 +48,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
     );
   }
 
-  async function saveDraft(index: number) {
+  async function handleDispatchJob(index: number) {
     const draft = drafts[index];
     if (!draft || !tryGetFirebase() || !db) return;
 
@@ -59,24 +59,43 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
       return next;
     });
 
+    const jobTitle = draft.title.trim();
+    const client = draft.client.trim();
+    const workerIds = draft.assignedWorkerIds;
+
     try {
       await createJob(db, {
-        client: draft.client.trim(),
-        title: draft.title.trim(),
+        client,
+        title: jobTitle,
         duration: draft.duration.trim(),
         notes: draft.notes.trim(),
-        assignedWorkerIds: draft.assignedWorkerIds,
+        assignedWorkerIds: workerIds,
       });
-      setSaved((current) => ({ ...current, [index]: true }));
     } catch (err) {
       console.error(err);
       setErrors((current) => ({
         ...current,
         [index]: "Could not save this job to Firestore.",
       }));
-    } finally {
       setSavingIndex(null);
+      return;
     }
+
+    try {
+      const response = await fetch("/api/notify-worker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobTitle, client, workerIds }),
+      });
+      if (!response.ok) {
+        console.error("Worker notification failed", response.status);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
+    setSaved((current) => ({ ...current, [index]: true }));
+    setSavingIndex(null);
   }
 
   async function saveAll() {
@@ -84,7 +103,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
     for (let index = 0; index < drafts.length; index += 1) {
       const draft = drafts[index];
       if (!draft?.valid || saved[index] || !draft.client || !draft.title) continue;
-      await saveDraft(index);
+      await handleDispatchJob(index);
     }
     setBulkSaving(false);
   }
@@ -153,7 +172,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
             saved={Boolean(saved[index])}
             error={errors[index]}
             onChange={(patch) => patchDraft(index, patch)}
-            onSave={() => saveDraft(index)}
+            onSave={() => handleDispatchJob(index)}
           />
         ))}
       </div>

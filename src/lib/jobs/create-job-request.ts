@@ -43,7 +43,7 @@ function workerIdsFrom(
   return { ok: true, value: ids };
 }
 
-/** Validate the POST /api/jobs body. Does not write to Firestore. */
+/** Validate the POST /api/notify-worker body. Does not write to Firestore. */
 export function parseCreateJobRequest(body: unknown): CreateJobRequestResult {
   if (!isRecord(body)) {
     return { ok: false, error: OBJECT_ERROR };
