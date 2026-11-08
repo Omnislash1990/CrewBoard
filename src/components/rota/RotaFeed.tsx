@@ -7,7 +7,7 @@ import { WorkerJobCard } from "@/components/rota/WorkerJobCard";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { FullPageSpinner, Spinner } from "@/components/ui/Spinner";
 import { jobFromDoc, updateJobStatus } from "@/lib/firebase/jobs";
-import { tryGetFirebase } from "@/lib/firebase/client";
+import { db, tryGetFirebase } from "@/lib/firebase/client";
 import { formatDayLabel } from "@/lib/format";
 import type { Job, JobStatus } from "@/types";
 
@@ -18,11 +18,10 @@ export function RotaFeed() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const firebase = tryGetFirebase();
-    if (!firebase || !profile) return;
+    if (!tryGetFirebase() || !db || !profile) return;
 
     const jobsQuery = query(
-      collection(firebase.db, "jobs"),
+      collection(db, "jobs"),
       where("assignedWorkerIds", "array-contains", profile.uid),
     );
 
@@ -51,11 +50,10 @@ export function RotaFeed() {
   }, [jobs, showCompleted]);
 
   async function onStatus(jobId: string, status: JobStatus) {
-    const firebase = tryGetFirebase();
-    if (!firebase) return;
+    if (!tryGetFirebase() || !db) return;
     setUpdatingId(jobId);
     try {
-      await updateJobStatus(firebase.db, jobId, status);
+      await updateJobStatus(db, jobId, status);
     } finally {
       setUpdatingId(null);
     }

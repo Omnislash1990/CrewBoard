@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { JobPreviewCard, type JobDraft } from "@/components/admin/JobPreviewCard";
 import { Spinner } from "@/components/ui/Spinner";
 import { createJob } from "@/lib/firebase/jobs";
-import { tryGetFirebase } from "@/lib/firebase/client";
+import { db, tryGetFirebase } from "@/lib/firebase/client";
 import { parseTogglText, SAMPLE_TOGGL_PASTE } from "@/lib/parser/toggl";
 import type { AppUser } from "@/types";
 
@@ -50,8 +50,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
 
   async function saveDraft(index: number) {
     const draft = drafts[index];
-    const firebase = tryGetFirebase();
-    if (!draft || !firebase) return;
+    if (!draft || !tryGetFirebase() || !db) return;
 
     setSavingIndex(index);
     setErrors((current) => {
@@ -61,7 +60,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
     });
 
     try {
-      await createJob(firebase.db, {
+      await createJob(db, {
         client: draft.client.trim(),
         title: draft.title.trim(),
         duration: draft.duration.trim(),

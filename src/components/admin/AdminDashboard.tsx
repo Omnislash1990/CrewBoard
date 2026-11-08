@@ -13,7 +13,7 @@ import { JobsBoard } from "@/components/admin/JobsBoard";
 import { Logo } from "@/components/brand/Logo";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { jobFromDoc } from "@/lib/firebase/jobs";
-import { tryGetFirebase } from "@/lib/firebase/client";
+import { db, tryGetFirebase } from "@/lib/firebase/client";
 import { userFromDoc } from "@/lib/firebase/users";
 import type { AppUser, Job } from "@/types";
 
@@ -23,11 +23,10 @@ export function AdminDashboard() {
   const [workers, setWorkers] = useState<AppUser[]>([]);
 
   useEffect(() => {
-    const firebase = tryGetFirebase();
-    if (!firebase) return;
+    if (!tryGetFirebase() || !db) return;
 
     const jobsQuery = query(
-      collection(firebase.db, "jobs"),
+      collection(db, "jobs"),
       orderBy("createdAt", "desc"),
     );
     const unsubJobs = onSnapshot(
@@ -41,7 +40,7 @@ export function AdminDashboard() {
     );
 
     const workersQuery = query(
-      collection(firebase.db, "users"),
+      collection(db, "users"),
       where("role", "==", "worker"),
     );
     const unsubWorkers = onSnapshot(workersQuery, (snap) => {

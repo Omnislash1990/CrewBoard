@@ -1,5 +1,5 @@
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { getFirebase } from "@/lib/firebase/config";
+import { db, getFirebase } from "@/lib/firebase/config";
 import { loadOrCreateWorkerProfile } from "@/lib/firebase/users";
 import { beginProfileWrite } from "@/lib/auth/profile-write";
 import type { AppUser } from "@/types";
@@ -13,7 +13,10 @@ export async function registerTradeWorker(
   const gate = beginProfileWrite();
 
   try {
-    const { auth, db } = getFirebase();
+    const { auth } = getFirebase();
+    if (!db) {
+      throw new Error("Firestore is not available.");
+    }
     const userCredential = await createUserWithEmailAndPassword(
       auth,
       email,

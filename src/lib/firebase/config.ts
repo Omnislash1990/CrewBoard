@@ -42,6 +42,9 @@ type FirebaseClients = {
 
 let clients: FirebaseClients | null = null;
 
+/** Offline Firestore in the browser. Null until Firebase env is present, and a memory cache during SSR. */
+export let db: Firestore | null = null;
+
 /**
  * Browser clients keep Firestore in IndexedDB so a worker can read the rota
  * and queue status updates with no signal. Next.js also renders client
@@ -64,7 +67,7 @@ export function getFirebase(): FirebaseClients {
   if (!clients) {
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = createFirestore(app);
+    db = createFirestore(app);
     connectLocalEmulators(auth, db);
     clients = { app, auth, db };
   }

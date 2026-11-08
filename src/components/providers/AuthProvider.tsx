@@ -16,7 +16,7 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from "firebase/auth";
-import { isFirebaseConfigured, tryGetFirebase } from "@/lib/firebase/client";
+import { db, isFirebaseConfigured, tryGetFirebase } from "@/lib/firebase/client";
 import { loadOrCreateWorkerProfile } from "@/lib/firebase/users";
 import { authErrorMessage } from "@/lib/auth/errors";
 import { waitForProfileWrite } from "@/lib/auth/profile-write";
@@ -68,10 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error(writeError);
         }
 
-        const nextProfile = await loadOrCreateWorkerProfile(
-          firebase.db,
-          nextUser,
-        );
+        if (!db) {
+          throw new Error("Firestore is not available.");
+        }
+        const nextProfile = await loadOrCreateWorkerProfile(db, nextUser);
 
         setProfile(nextProfile);
         setSessionCookie({ uid: nextProfile.uid, role: nextProfile.role });

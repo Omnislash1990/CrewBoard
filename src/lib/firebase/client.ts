@@ -1,5 +1,6 @@
 export {
   createFirestore,
+  db,
   getFirebase,
   isFirebaseConfigured,
   tryGetFirebase,
