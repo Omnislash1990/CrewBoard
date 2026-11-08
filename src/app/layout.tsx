@@ -29,6 +29,25 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "CrewBoard",
   },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      {
+        url: "/icons/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
+  // Next.js 16 emits mobile-web-app-capable from appleWebApp.capable.
+  // Older iOS still reads the Apple-prefixed tag when adding to the home screen.
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
   formatDetection: {
     telephone: false,
   },
