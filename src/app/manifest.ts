@@ -3,15 +3,15 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "CrewBoard",
-    short_name: "CrewBoard",
+    name: "Trades Dispatch Platform",
+    short_name: "Dispatch",
     description: "Job dispatch and rota for trades teams.",
     lang: "en-GB",
     start_url: "/",
     scope: "/",
     display: "standalone",
-    background_color: "#f7f4ef",
-    theme_color: "#c2410c",
+    background_color: "#f8fafc",
+    theme_color: "#0f172a",
     orientation: "portrait",
     icons: [
       {
