@@ -2,13 +2,10 @@ import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import {
   connectFirestoreEmulator,
-  getFirestore,
   initializeFirestore,
   memoryLocalCache,
   persistentLocalCache,
-  persistentMultipleTabManager,
   type Firestore,
-  type FirestoreLocalCache,
 } from "firebase/firestore";
 import { canUsePersistentFirestoreCache } from "@/lib/firebase/runtime";
 
@@ -45,63 +42,21 @@ type FirebaseClients = {
 
 let clients: FirebaseClients | null = null;
 
+/** Offline Firestore in the browser. Null until Firebase env is present, and a memory cache during SSR. */
+export let db: Firestore | null = null;
+
 /**
- * Opens Firestore for this Firebase app.
- *
- * In the browser, rota reads and status writes go through an IndexedDB cache
- * (`persistentLocalCache` with `persistentMultipleTabManager`). A worker who
- * loses signal can still open jobs already on the device, and a status change
- * is queued until the phone is online again. Another tab shares that cache
- * instead of failing with `failed-precondition`.
- *
- * Next.js also evaluates this module on the server. IndexedDB is not used
- * there; that path gets an in-memory cache. If the persistent cache cannot
- * start, the failure is logged and Auth still receives a Firestore instance.
- *
- * Call this instead of `getFirestore()`. A `getFirestore()` call first locks
- * in the default memory cache, and persistence cannot be enabled afterwards.
+ * Browser clients keep Firestore in IndexedDB so a worker can read the rota
+ * and queue status updates with no signal. Next.js also renders client
+ * modules on the server, where `window` is undefined, so that path uses an
+ * in-memory cache and never opens IndexedDB.
  */
 export function createFirestore(app: FirebaseApp): Firestore {
   if (!canUsePersistentFirestoreCache()) {
-    return openFirestore(app, memoryLocalCache());
+    return initializeFirestore(app, { localCache: memoryLocalCache() });
   }
 
-  try {
-    return openFirestore(
-      app,
-      persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-    );
-  } catch (error) {
-    console.warn(
-      "Firestore offline persistence could not be enabled. Sign-in will continue with an in-memory cache.",
-      error,
-    );
-    return openFirestore(app, memoryLocalCache());
-  }
-}
-
-function openFirestore(app: FirebaseApp, localCache: FirestoreLocalCache): Firestore {
-  try {
-    return initializeFirestore(app, { localCache });
-  } catch (error) {
-    if (!isFirestoreAlreadyStarted(error)) throw error;
-    console.warn(
-      "Firestore was already started. Reusing that instance so auth can continue.",
-      error,
-    );
-    return getFirestore(app);
-  }
-}
-
-function isFirestoreAlreadyStarted(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "failed-precondition"
-  );
+  return initializeFirestore(app, { localCache: persistentLocalCache() });
 }
 
 export function getFirebase(): FirebaseClients {
@@ -112,7 +67,7 @@ export function getFirebase(): FirebaseClients {
   if (!clients) {
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = createFirestore(app);
+    db = createFirestore(app);
     connectLocalEmulators(auth, db);
     clients = { app, auth, db };
   }
@@ -125,26 +80,7 @@ export function tryGetFirebase() {
   return getFirebase();
 }
 
-/**
- * Shared Firestore instance for rota listeners and job writes.
- * `null` when the web config is missing. Created with the offline cache
- * above, not with a bare `getFirestore()` call.
- */
-export const db: Firestore | null = readFirestore();
-
-function readFirestore(): Firestore | null {
-  try {
-    return tryGetFirebase()?.db ?? null;
-  } catch (error) {
-    console.warn(
-      "Firestore is not available. Sign-in will continue without rota data.",
-      error,
-    );
-    return null;
-  }
-}
-
-function connectLocalEmulators(auth: Auth, db: Firestore) {
+function connectLocalEmulators(auth: Auth, dbInstance: Firestore) {
   // Attached only after the cache is chosen, and only for `next dev`.
   if (typeof window === "undefined") return;
   if (
@@ -155,5 +91,5 @@ function connectLocalEmulators(auth: Auth, db: Firestore) {
   }
 
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectFirestoreEmulator(dbInstance, "127.0.0.1", 8080);
 }
