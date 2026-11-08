@@ -2,40 +2,60 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { canUsePersistentFirestoreCache } from "./runtime.ts";
 
-test("Firestore persistence stays off during SSR", () => {
+test("Firestore persistence is on only in a browser with IndexedDB", () => {
   assert.equal(typeof window, "undefined");
   assert.equal(canUsePersistentFirestoreCache(), false);
-});
 
-test("Firestore persistence is on only when window and IndexedDB exist", () => {
-  const previousWindow = globalThis.window;
-  const previousIndexedDb = globalThis.indexedDB;
+  const globals = globalThis as typeof globalThis & {
+    window?: unknown;
+    indexedDB?: unknown;
+  };
+  const hadWindow = Object.hasOwn(globals, "window");
+  const hadIndexedDb = Object.hasOwn(globals, "indexedDB");
+  const previousWindow = globals.window;
+  const previousIndexedDb = globals.indexedDB;
 
-  Object.defineProperty(globalThis, "window", {
-    configurable: true,
-    value: {},
-  });
-  Object.defineProperty(globalThis, "indexedDB", {
-    configurable: true,
-    value: {},
-  });
+  function restore(name: "window" | "indexedDB", had: boolean, previous: unknown) {
+    if (!had) {
+      delete globals[name];
+      return;
+    }
+    Object.defineProperty(globals, name, {
+      configurable: true,
+      writable: true,
+      value: previous,
+    });
+  }
 
   try {
+    Object.defineProperty(globals, "window", {
+      configurable: true,
+      writable: true,
+      value: {},
+    });
+    Object.defineProperty(globals, "indexedDB", {
+      configurable: true,
+      writable: true,
+      value: {},
+    });
     assert.equal(canUsePersistentFirestoreCache(), true);
 
-    Object.defineProperty(globalThis, "indexedDB", {
+    Object.defineProperty(globals, "indexedDB", {
       configurable: true,
+      writable: true,
       value: undefined,
     });
     assert.equal(canUsePersistentFirestoreCache(), false);
+
+    Object.defineProperty(globals, "indexedDB", {
+      configurable: true,
+      get() {
+        throw new Error("indexedDB blocked");
+      },
+    });
+    assert.equal(canUsePersistentFirestoreCache(), false);
   } finally {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: previousWindow,
-    });
-    Object.defineProperty(globalThis, "indexedDB", {
-      configurable: true,
-      value: previousIndexedDb,
-    });
+    restore("window", hadWindow, previousWindow);
+    restore("indexedDB", hadIndexedDb, previousIndexedDb);
   }
 });
