@@ -1,18 +1,10 @@
-import {
-  FirebaseError,
-  getApp,
-  getApps,
-  initializeApp,
-  type FirebaseApp,
-} from "firebase/app";
+import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import {
   connectFirestoreEmulator,
-  getFirestore,
   initializeFirestore,
   memoryLocalCache,
   persistentLocalCache,
-  persistentMultipleTabManager,
   type Firestore,
 } from "firebase/firestore";
 import { canUsePersistentFirestoreCache } from "@/lib/firebase/runtime";
@@ -57,23 +49,11 @@ let clients: FirebaseClients | null = null;
  * in-memory cache and never opens IndexedDB.
  */
 export function createFirestore(app: FirebaseApp): Firestore {
-  try {
-    return initializeFirestore(app, {
-      localCache: canUsePersistentFirestoreCache()
-        ? persistentLocalCache({
-            tabManager: persistentMultipleTabManager(),
-          })
-        : memoryLocalCache(),
-    });
-  } catch (error) {
-    if (
-      error instanceof FirebaseError &&
-      error.code === "failed-precondition"
-    ) {
-      return getFirestore(app);
-    }
-    throw error;
+  if (!canUsePersistentFirestoreCache()) {
+    return initializeFirestore(app, { localCache: memoryLocalCache() });
   }
+
+  return initializeFirestore(app, { localCache: persistentLocalCache() });
 }
 
 export function getFirebase(): FirebaseClients {
