@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EmailVerificationBanner } from "@/components/auth/EmailVerificationBanner";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default function AdminLayout({
         </aside>
 
         <div className="md:pl-64">
+          <EmailVerificationBanner />
           <header className="border-b border-slate-200 bg-white px-4 py-3 md:hidden">
             <p className="text-sm font-semibold text-slate-900">Job Dispatch</p>
           </header>

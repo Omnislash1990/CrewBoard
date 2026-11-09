@@ -1,4 +1,10 @@
-export type AuthAction = "sign-in" | "register" | "google" | "profile";
+export type AuthAction =
+  | "sign-in"
+  | "register"
+  | "google"
+  | "profile"
+  | "reset"
+  | "verify";
 
 type CodedError = {
   code: string;
@@ -82,11 +88,20 @@ export function authErrorMessage(
     case "auth/weak-password":
       return "Use at least 6 characters for the password.";
     case "auth/invalid-email":
+    case "auth/missing-email":
       return "Enter a valid email address.";
+    case "auth/unauthorized-continue-uri":
+    case "auth/invalid-continue-uri":
+      return host
+        ? `Password and verification links cannot return to ${host}. Add that host under Firebase Authentication → Settings → Authorised domains.`
+        : "Password and verification links cannot return to this host. Add it under Firebase Authentication → Settings → Authorised domains.";
     case "auth/invalid-credential":
     case "auth/wrong-password":
     case "auth/user-not-found":
     case "auth/invalid-login-credentials":
+      if (action === "reset" || action === "verify") {
+        return fallback(action);
+      }
       return "Email or password is incorrect.";
     case "auth/too-many-requests":
       return "Too many attempts. Wait a moment and try again.";
@@ -105,7 +120,11 @@ function fallback(action: AuthAction) {
       return "Could not create the account. Try again.";
     case "profile":
       return "Could not load your CrewBoard profile.";
-    default:
+    case "reset":
+      return "Could not send the reset email. Try again.";
+    case "verify":
+      return "Could not send the verification email. Try again.";
+    case "sign-in":
       return "Could not sign in. Try again.";
   }
 }

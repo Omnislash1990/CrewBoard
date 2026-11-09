@@ -1,4 +1,5 @@
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import { sendAccountVerificationEmail } from "@/lib/auth/verification";
 import { getFirebase } from "@/lib/firebase/config";
 import { loadOrCreateWorkerProfile } from "@/lib/firebase/users";
 import { beginProfileWrite } from "@/lib/auth/profile-write";
@@ -9,7 +10,15 @@ export async function registerTradeWorker(
   password: string,
   name: string,
   phone: string,
-): Promise<{ success: true; user: AppUser } | { success: false; error: unknown }> {
+): Promise<
+  | {
+      success: true;
+      user: AppUser;
+      verificationEmailSent: boolean;
+      verificationError: unknown;
+    }
+  | { success: false; error: unknown }
+> {
   const gate = beginProfileWrite();
 
   try {
@@ -23,8 +32,14 @@ export async function registerTradeWorker(
       name,
       phone,
     });
+    const verification = await sendAccountVerificationEmail(userCredential.user);
     gate.resolve();
-    return { success: true, user };
+    return {
+      success: true,
+      user,
+      verificationEmailSent: verification.sent,
+      verificationError: verification.sent ? null : verification.error,
+    };
   } catch (error) {
     gate.reject(error);
     console.error("Registration error:", error);
