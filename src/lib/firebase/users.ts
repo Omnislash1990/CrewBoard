@@ -1,5 +1,5 @@
 import { FirebaseError } from "firebase/app";
-import { doc, getDoc, setDoc, type Firestore } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, type Firestore } from "firebase/firestore";
 import type { User } from "firebase/auth";
 import type { AppUser, UserRole } from "@/types";
 
@@ -72,6 +72,14 @@ export async function ensureWorkerProfile(
     }
     throw error;
   }
+}
+
+export async function setUserRole(
+  db: Firestore,
+  userId: string,
+  role: UserRole,
+) {
+  await updateDoc(doc(db, "users", userId), { role });
 }
 
 export function userFromDoc(

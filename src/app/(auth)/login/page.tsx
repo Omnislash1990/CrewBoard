@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Logo } from "@/components/brand/Logo";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Spinner } from "@/components/ui/Spinner";
 import {
   authErrorMessage,
@@ -136,19 +137,26 @@ function LoginForm() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-stone-700"
+              className="mb-1 block text-sm font-medium text-stone-700"
             >
               Password
             </label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 p-2.5 text-sm outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
+              className="w-full rounded-lg border border-stone-300 p-2.5 text-sm outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
               required
             />
+          </div>
+          <div className="flex justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-sm font-semibold text-orange-700 hover:underline"
+            >
+              Forgot password?
+            </Link>
           </div>
           <button
             type="submit"

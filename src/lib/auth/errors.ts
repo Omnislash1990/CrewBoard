@@ -1,4 +1,4 @@
-export type AuthAction = "sign-in" | "register" | "google" | "profile";
+export type AuthAction = "sign-in" | "register" | "google" | "profile" | "reset";
 
 type CodedError = {
   code: string;
@@ -67,9 +67,13 @@ export function authErrorMessage(
         ? `Google sign-in is not allowed from ${host}. Add that host under Firebase Authentication → Settings → Authorised domains.`
         : "Google sign-in is not allowed from this host. Add it under Firebase Authentication → Settings → Authorised domains.";
     case "auth/operation-not-allowed":
-      return action === "google"
-        ? "Google sign-in is turned off in Firebase Authentication. Enable the Google provider and try again."
-        : "Email and password sign-in is turned off in Firebase Authentication. Enable the Email/Password provider and try again.";
+      if (action === "google") {
+        return "Google sign-in is turned off in Firebase Authentication. Enable the Google provider and try again.";
+      }
+      if (action === "reset") {
+        return "Password reset email is turned off in Firebase Authentication. Enable the Email/Password provider and try again.";
+      }
+      return "Email and password sign-in is turned off in Firebase Authentication. Enable the Email/Password provider and try again.";
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return "Google sign-in was cancelled.";
@@ -82,11 +86,18 @@ export function authErrorMessage(
     case "auth/weak-password":
       return "Use at least 6 characters for the password.";
     case "auth/invalid-email":
+    case "auth/missing-email":
       return "Enter a valid email address.";
+    case "auth/unauthorized-continue-uri":
+    case "auth/invalid-continue-uri":
+      return host
+        ? `Password reset links cannot return to ${host}. Add that host under Firebase Authentication → Settings → Authorised domains.`
+        : "Password reset links cannot return to this host. Add it under Firebase Authentication → Settings → Authorised domains.";
     case "auth/invalid-credential":
     case "auth/wrong-password":
     case "auth/user-not-found":
     case "auth/invalid-login-credentials":
+      if (action === "reset") return fallback(action);
       return "Email or password is incorrect.";
     case "auth/too-many-requests":
       return "Too many attempts. Wait a moment and try again.";
@@ -105,6 +116,8 @@ function fallback(action: AuthAction) {
       return "Could not create the account. Try again.";
     case "profile":
       return "Could not load your CrewBoard profile.";
+    case "reset":
+      return "Could not send the reset email. Try again.";
     default:
       return "Could not sign in. Try again.";
   }

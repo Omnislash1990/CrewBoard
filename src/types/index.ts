@@ -24,3 +24,20 @@ export type Job = {
   assignedWorkerIds: string[];
   createdAt: Date;
 };
+
+export type NotificationKind =
+  | "job_assigned"
+  | "job_updated"
+  | "job_unassigned"
+  | "job_removed";
+
+export type CrewNotification = {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: Date;
+  jobId: string;
+  kind: NotificationKind;
+};

@@ -1,39 +1,143 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if the requester is an admin
+    function signedIn() {
+      return request.auth != null;
+    }
+
     function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function validRole(role) {
+      return role == 'admin' || role == 'worker';
+    }
+
+    // Email and phone may be absent on older hand-written profiles.
+    function validUser(data) {
+      return data.keys().hasOnly(['uid', 'name', 'email', 'role', 'phone'])
+        && data.keys().hasAll(['uid', 'name', 'role'])
+        && data.uid is string
+        && data.uid.size() > 0
+        && data.uid.size() < 128
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() < 200
+        && validRole(data.role)
+        && (!data.keys().hasAny(['email']) || (data.email is string && data.email.size() < 320))
+        && (!data.keys().hasAny(['phone']) || (data.phone is string && data.phone.size() < 40));
+    }
+
+    function validJobStatus(status) {
+      return status == 'unassigned'
+        || status == 'assigned'
+        || status == 'in_progress'
+        || status == 'completed';
+    }
+
+    function validJob(data, jobId) {
+      return data.keys().hasOnly(['id', 'client', 'title', 'duration', 'notes', 'status', 'assignedWorkerIds', 'createdAt'])
+        && data.keys().hasAll(['id', 'client', 'title', 'duration', 'notes', 'status', 'assignedWorkerIds', 'createdAt'])
+        && data.id == jobId
+        && data.client is string
+        && data.client.size() > 0
+        && data.client.size() < 200
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() < 300
+        && data.duration is string
+        && data.duration.size() < 80
+        && data.notes is string
+        && data.notes.size() < 4000
+        && validJobStatus(data.status)
+        && data.assignedWorkerIds is list
+        && data.assignedWorkerIds.size() < 50
+        && data.createdAt is timestamp;
+    }
+
+    function validKind(kind) {
+      return kind == 'job_assigned'
+        || kind == 'job_updated'
+        || kind == 'job_unassigned'
+        || kind == 'job_removed';
+    }
+
+    function validNotification(data) {
+      return data.keys().hasOnly(['userId', 'title', 'body', 'read', 'createdAt', 'jobId', 'kind'])
+        && data.keys().hasAll(['userId', 'title', 'body', 'read', 'createdAt', 'jobId', 'kind'])
+        && data.userId is string
+        && data.userId.size() > 0
+        && data.userId.size() < 128
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() < 200
+        && data.body is string
+        && data.body.size() > 0
+        && data.body.size() < 2000
+        && data.read == false
+        && data.createdAt is timestamp
+        && data.jobId is string
+        && data.jobId.size() < 128
+        && validKind(data.kind);
+    }
+
     match /users/{userId} {
-      // Users can read their own profile; Admins can read everyone
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      
-      // Allow users to create their initial profile during sign-up
-      // but prevent them from setting their own role to 'admin'
-      allow create: if request.auth != null 
-                    && request.auth.uid == userId
-                    && request.resource.data.role == 'worker';
-                    
-      // Only admins can update user profiles (e.g., promoting someone to admin)
-      allow update, delete: if request.auth != null && isAdmin();
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+
+      // Sign-up can only create a worker profile for the signed-in person.
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.role == 'worker'
+        && validUser(request.resource.data);
+
+      // Another admin may change a role. Nobody can change their own role,
+      // so the last admin cannot demote themselves and lock the office out.
+      allow update: if isAdmin()
+        && validUser(request.resource.data)
+        && request.resource.data.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && (
+          request.resource.data.role == resource.data.role
+          || request.auth.uid != userId
+        );
+
+      allow delete: if false;
     }
 
     match /jobs/{jobId} {
-      // Admins have full CRUD access to all jobs
-      allow read, write: if request.auth != null && isAdmin();
-      
-      // Workers can only read jobs where their UID is in the assignedWorkerIds array
-      allow read: if request.auth != null 
-                  && request.auth.uid in resource.data.assignedWorkerIds;
-                  
-      // Workers can only update the 'status' field of their assigned jobs
-      allow update: if request.auth != null
-                    && request.auth.uid in resource.data.assignedWorkerIds
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow read: if isAdmin()
+        || (signedIn() && request.auth.uid in resource.data.assignedWorkerIds);
+
+      allow create: if isAdmin() && validJob(request.resource.data, jobId);
+
+      allow update: if isAdmin()
+        && validJob(request.resource.data, jobId)
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      // Assigned crew can move a job through its statuses and nothing else.
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.assignedWorkerIds
+        && validJobStatus(request.resource.data.status)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if isAdmin() && validNotification(request.resource.data);
+
+      // The recipient can mark their own alert read, and cannot rewrite it.
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.read == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      allow delete: if false;
     }
   }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { Logo } from "@/components/brand/Logo";
+import { NotificationBell } from "@/components/rota/NotificationBell";
 import { WorkerJobCard } from "@/components/rota/WorkerJobCard";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { FullPageSpinner, Spinner } from "@/components/ui/Spinner";
@@ -85,6 +86,7 @@ export function RotaFeed() {
           <h1 className="font-[family-name:var(--font-barlow)] text-2xl font-semibold text-stone-900">
             {profile.name ? `${profile.name.split(" ")[0]}'s rota` : "Your rota"}
           </h1>
+          <NotificationBell />
         </div>
       </header>
 

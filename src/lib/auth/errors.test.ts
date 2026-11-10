@@ -51,6 +51,25 @@ test("Google domain and provider failures name the host", () => {
   );
 });
 
+test("password reset does not reveal whether the email exists", () => {
+  assert.match(
+    authErrorMessage({ code: "auth/user-not-found", message: "missing" }, "reset"),
+    /Could not send the reset email/,
+  );
+  assert.doesNotMatch(
+    authErrorMessage({ code: "auth/user-not-found", message: "missing" }, "reset"),
+    /no account|not found|incorrect/i,
+  );
+  assert.match(
+    authErrorMessage(
+      { code: "auth/invalid-continue-uri", message: "uri" },
+      "reset",
+      "crew-board-chi.vercel.app",
+    ),
+    /crew-board-chi\.vercel\.app/,
+  );
+});
+
 test("missing Firestore database is distinct from a rules denial", () => {
   assert.match(
     authErrorMessage(
