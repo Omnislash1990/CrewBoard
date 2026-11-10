@@ -20,6 +20,19 @@ export function WorkerPicker({
     () => workers.filter((worker) => selectedIds.includes(worker.uid)),
     [selectedIds, workers],
   );
+  const missingCount = selectedIds.filter(
+    (id) => !workers.some((worker) => worker.uid === id),
+  ).length;
+  const selectedLabel = [
+    ...selected.map((worker) => worker.name),
+    missingCount === 1
+      ? "1 assigned person"
+      : missingCount > 1
+        ? `${missingCount} assigned people`
+        : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
@@ -47,9 +60,7 @@ export function WorkerPicker({
         className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-stone-300 bg-white px-3 py-2 text-left text-sm text-stone-800 outline-none ring-orange-700/30 transition hover:border-stone-400 focus:border-orange-700 focus:ring-4"
       >
         <span className="truncate">
-          {selected.length === 0
-            ? "Select crew"
-            : selected.map((worker) => worker.name).join(", ")}
+          {selectedLabel.length === 0 ? "Select crew" : selectedLabel}
         </span>
         <svg
           viewBox="0 0 20 20"

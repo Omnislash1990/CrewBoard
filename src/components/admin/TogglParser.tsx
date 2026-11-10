@@ -5,6 +5,8 @@ import { JobPreviewCard, type JobDraft } from "@/components/admin/JobPreviewCard
 import { Spinner } from "@/components/ui/Spinner";
 import { createJob } from "@/lib/firebase/jobs";
 import { tryGetFirebase } from "@/lib/firebase/client";
+import { draftsForNewJob } from "@/lib/notifications/events";
+import { publishNotifications } from "@/lib/notifications/publish";
 import { parseTogglText, SAMPLE_TOGGL_PASTE } from "@/lib/parser/toggl";
 import type { AppUser } from "@/types";
 
@@ -61,7 +63,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
     });
 
     try {
-      await createJob(firebase.db, {
+      const jobId = await createJob(firebase.db, {
         client: draft.client.trim(),
         title: draft.title.trim(),
         duration: draft.duration.trim(),
@@ -69,6 +71,30 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
         assignedWorkerIds: draft.assignedWorkerIds,
       });
       setSaved((current) => ({ ...current, [index]: true }));
+      try {
+        const email = await publishNotifications(
+          draftsForNewJob(jobId, {
+            client: draft.client.trim(),
+            title: draft.title.trim(),
+            duration: draft.duration.trim(),
+            notes: draft.notes.trim(),
+            status: draft.assignedWorkerIds.length > 0 ? "assigned" : "unassigned",
+            assignedWorkerIds: draft.assignedWorkerIds,
+          }),
+        );
+        if (email.email === "failed") {
+          setErrors((current) => ({
+            ...current,
+            [index]: "Job saved. The in-app alert was saved, but email did not send.",
+          }));
+        }
+      } catch (notifyError) {
+        console.error(notifyError);
+        setErrors((current) => ({
+          ...current,
+          [index]: "Job saved, but the crew alert could not be sent.",
+        }));
+      }
     } catch (err) {
       console.error(err);
       setErrors((current) => ({

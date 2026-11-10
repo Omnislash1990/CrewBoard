@@ -1,3 +1,8 @@
+/**
+ * UX routing only. The session cookie is written by the browser and is not a
+ * credential. Firestore rules authorize data, and the notification route
+ * checks a Firebase ID token instead of this cookie.
+ */
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import {
@@ -13,7 +18,10 @@ export function proxy(request: NextRequest) {
 
   const isAdminRoute = pathname.startsWith("/admin");
   const isRotaRoute = pathname.startsWith("/rota");
-  const isAuthRoute = pathname === "/login" || pathname === "/register";
+  const isAuthRoute =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/forgot-password";
 
   if ((isAdminRoute || isRotaRoute) && !session) {
     const url = request.nextUrl.clone();
@@ -45,5 +53,11 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/rota/:path*", "/login", "/register"],
+  matcher: [
+    "/admin/:path*",
+    "/rota/:path*",
+    "/login",
+    "/register",
+    "/forgot-password",
+  ],
 };

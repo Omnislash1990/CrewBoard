@@ -11,7 +11,7 @@ export function RoleGuard({
   allowedRoles,
   children,
 }: {
-  allowedRoles: UserRole[];
+  allowedRoles: readonly UserRole[];
   children: React.ReactNode;
 }) {
   const { loading, profile, configured } = useAuth();

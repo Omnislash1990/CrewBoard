@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { AdminNav } from "@/components/admin/AdminNav";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+
+const ADMIN_ROLES = ["admin"] as const;
 
 export const metadata: Metadata = {
   title: "Dispatch",
@@ -12,7 +14,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <RoleGuard allowedRoles={["admin"]}>
+    <RoleGuard allowedRoles={ADMIN_ROLES}>
       <div className="min-h-dvh bg-slate-50">
         <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col border-r border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-6 py-5">
@@ -23,19 +25,12 @@ export default function AdminLayout({
               Office portal
             </p>
           </div>
-          <nav className="flex-1 px-3 py-4">
-            <Link
-              href="/admin"
-              className="flex items-center rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-900"
-            >
-              Job Dispatch
-            </Link>
-          </nav>
+          <AdminNav className="flex flex-1 flex-col gap-1 px-3 py-4" />
         </aside>
 
         <div className="md:pl-64">
           <header className="border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-            <p className="text-sm font-semibold text-slate-900">Job Dispatch</p>
+            <AdminNav className="flex gap-2" />
           </header>
           <main className="p-6 md:p-8">{children}</main>
         </div>

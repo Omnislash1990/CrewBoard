@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --test src/lib/auth/errors.test.ts src/lib/auth/email-links.test.ts src/lib/auth/verify-id-token.test.ts src/lib/auth/bearer.test.ts src/lib/firebase/runtime.test.ts src/lib/notifications/email.test.ts src/lib/notifications/events.test.ts",
+    "test:rules": "npx --yes firebase-tools@14.26.0 emulators:exec --only firestore --project demo-crewboard \"node --experimental-strip-types --test tests/firestore.rules.test.ts\""
   },
   "dependencies": {
     "firebase": "^13.2.0",
@@ -15,6 +17,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
