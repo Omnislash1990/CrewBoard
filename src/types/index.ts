@@ -40,6 +40,11 @@ export type Job = {
   notes: string;
   status: JobStatus;
   assignedWorkerIds: string[];
+  /**
+   * Calendar day the work is for, YYYY-MM-DD.
+   * Empty on jobs saved before this field existed.
+   */
+  jobDate: string;
   createdAt: Date;
 };
 

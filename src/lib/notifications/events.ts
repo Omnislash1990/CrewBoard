@@ -8,6 +8,8 @@ export type JobNotice = {
   notes: string;
   status: JobStatus;
   assignedWorkerIds: string[];
+  jobDate?: string;
+  createdAt?: Date;
 };
 
 export type NotificationDraft = {
@@ -20,6 +22,31 @@ export type NotificationDraft = {
 
 function uniqueIds(ids: string[]) {
   return [...new Set(ids.filter((id) => id.trim().length > 0))];
+}
+
+function shownJobDate(job: JobNotice): string {
+  const value = job.jobDate?.trim() ?? "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    if (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    ) {
+      return value;
+    }
+  }
+  if (job.createdAt instanceof Date && !Number.isNaN(job.createdAt.getTime())) {
+    const year = job.createdAt.getFullYear();
+    const month = String(job.createdAt.getMonth() + 1).padStart(2, "0");
+    const day = String(job.createdAt.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  return "";
 }
 
 function assignedCopy(job: JobNotice) {
@@ -79,7 +106,8 @@ export function draftsForJobUpdate(
     before.title !== after.title ||
     (before.address ?? "") !== (after.address ?? "") ||
     before.notes !== after.notes ||
-    before.status !== after.status;
+    before.status !== after.status ||
+    shownJobDate(before) !== shownJobDate(after);
 
   if (contentChanged) {
     for (const userId of afterIds) {

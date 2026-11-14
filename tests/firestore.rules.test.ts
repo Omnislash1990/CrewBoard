@@ -272,6 +272,51 @@ test("a worker can complete only a part assigned to them", async () => {
   assert.equal(allParts.size, 2);
 });
 
+test("an admin can set the job date and a worker cannot", async () => {
+  await assertSucceeds(
+    updateDoc(doc(asDb("admin-1"), "jobs/job-1"), {
+      jobDate: "2026-11-02",
+    }),
+  );
+  const saved = await getDoc(doc(asDb("admin-1"), "jobs/job-1"));
+  assert.equal(saved.data()?.jobDate, "2026-11-02");
+  assert.equal(saved.data()?.duration, "3h");
+  assert.ok(saved.data()?.createdAt);
+
+  await assertSucceeds(
+    updateDoc(doc(asDb("admin-1"), "jobs/job-1"), {
+      title: "Ceiling",
+    }),
+  );
+
+  await assertSucceeds(
+    updateDoc(doc(asDb("worker-1"), "jobs/job-1"), { status: "in_progress" }),
+  );
+  await assertFails(
+    updateDoc(doc(asDb("worker-1"), "jobs/job-1"), { jobDate: "2026-12-01" }),
+  );
+  await assertFails(
+    updateDoc(doc(asDb("admin-1"), "jobs/job-1"), { jobDate: "02/11/2026" }),
+  );
+  await assertFails(
+    updateDoc(doc(asDb("admin-1"), "jobs/job-1"), { jobDate: "2026-13-40" }),
+  );
+
+  await assertSucceeds(
+    setDoc(doc(asDb("admin-1"), "jobs/job-dated"), {
+      id: "job-dated",
+      client: "Priory",
+      title: "Fire clean",
+      duration: "",
+      notes: "",
+      status: "unassigned",
+      assignedWorkerIds: [],
+      jobDate: "2026-11-20",
+      createdAt,
+    }),
+  );
+});
+
 test("an admin can edit and delete a dispatched job", async () => {
   await assertSucceeds(
     updateDoc(doc(asDb("admin-1"), "jobs/job-1"), {

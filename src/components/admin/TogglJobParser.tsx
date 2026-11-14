@@ -6,6 +6,7 @@ import { PartsReviewBanner } from "@/components/admin/PartsReviewBanner";
 import { TogglParser } from "@/components/admin/TogglParser";
 import { JobsBoard } from "@/components/admin/JobsBoard";
 import { jobFromDoc } from "@/lib/firebase/jobs";
+import { sortJobsByDate } from "@/lib/jobs/date";
 import { reviewJobPart, subscribeJobParts } from "@/lib/firebase/parts";
 import { tryGetFirebase } from "@/lib/firebase/client";
 import { subscribeCrewWorkers } from "@/lib/firebase/users";
@@ -39,7 +40,9 @@ export function TogglJobParser() {
     const unsubJobs = onSnapshot(
       jobsQuery,
       (snap) => {
-        setJobs(snap.docs.map(jobFromDoc));
+        // Keep the createdAt query so older jobs with no jobDate still load,
+        // then order the list by the date the office chose.
+        setJobs(sortJobsByDate(snap.docs.map(jobFromDoc)));
       },
       (error) => {
         console.error("Jobs listener failed", error);

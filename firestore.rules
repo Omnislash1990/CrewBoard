@@ -58,8 +58,17 @@ service cloud.firestore {
         || (data.address is string && data.address.size() < 500);
     }
 
+    // Optional so jobs saved before this field existed can still be edited.
+    // A present value is a calendar day, not the createdAt instant.
+    function validJobDate(data) {
+      return !data.keys().hasAny(['jobDate'])
+        || (data.jobDate is string
+          && data.jobDate.size() == 10
+          && data.jobDate.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'));
+    }
+
     function validJob(data, jobId) {
-      return data.keys().hasOnly(['id', 'client', 'title', 'address', 'duration', 'notes', 'status', 'assignedWorkerIds', 'createdAt'])
+      return data.keys().hasOnly(['id', 'client', 'title', 'address', 'duration', 'notes', 'status', 'assignedWorkerIds', 'jobDate', 'createdAt'])
         && data.keys().hasAll(['id', 'client', 'title', 'duration', 'notes', 'status', 'assignedWorkerIds', 'createdAt'])
         && data.id == jobId
         && data.client is string
@@ -69,6 +78,7 @@ service cloud.firestore {
         && data.title.size() > 0
         && data.title.size() < 300
         && validAddress(data)
+        && validJobDate(data)
         && data.duration is string
         && data.duration.size() < 80
         && data.notes is string

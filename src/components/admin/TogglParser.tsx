@@ -7,6 +7,7 @@ import { createJob } from "@/lib/firebase/jobs";
 import { tryGetFirebase } from "@/lib/firebase/client";
 import { draftsForNewJob } from "@/lib/notifications/events";
 import { publishNotifications } from "@/lib/notifications/publish";
+import { isJobDate, todayJobDate } from "@/lib/jobs/date";
 import { parseTogglText, SAMPLE_TOGGL_PASTE } from "@/lib/parser/toggl";
 import type { AppUser } from "@/types";
 
@@ -38,6 +39,7 @@ export function TogglParser({
         title: job.title,
         address: "",
         duration: job.duration,
+        jobDate: todayJobDate(),
         notes: job.notes,
         assignedWorkerIds: [],
         valid: job.valid,
@@ -61,6 +63,13 @@ export function TogglParser({
     const draft = drafts[index];
     const firebase = tryGetFirebase();
     if (!draft || !firebase) return;
+    if (!isJobDate(draft.jobDate)) {
+      setErrors((current) => ({
+        ...current,
+        [index]: "Choose a job date.",
+      }));
+      return;
+    }
 
     setSavingIndex(index);
     setErrors((current) => {
@@ -76,6 +85,7 @@ export function TogglParser({
         address: draft.address.trim(),
         duration: draft.duration.trim(),
         notes: draft.notes.trim(),
+        jobDate: draft.jobDate,
         assignedWorkerIds: draft.assignedWorkerIds,
       });
       setSaved((current) => ({ ...current, [index]: true }));

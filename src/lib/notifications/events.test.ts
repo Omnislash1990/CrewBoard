@@ -67,6 +67,24 @@ test("assignment alerts include the address and leave the time out", () => {
   assert.doesNotMatch(drafts[0]?.body ?? "", /3h/);
 });
 
+test("moving the job date notifies people who stayed on the job", () => {
+  const drafts = draftsForJobUpdate("job-1", base, {
+    ...base,
+    jobDate: "2026-11-20",
+  });
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0]?.kind, "job_updated");
+});
+
+test("saving the same calendar day as the old added date does not notify", () => {
+  const drafts = draftsForJobUpdate(
+    "job-1",
+    { ...base, createdAt: new Date(2026, 0, 15, 9, 0) },
+    { ...base, jobDate: "2026-01-15" },
+  );
+  assert.equal(drafts.length, 0);
+});
+
 test("deleting a job notifies the crew who had it", () => {
   const drafts = draftsForDeletedJob("job-1", base);
   assert.equal(drafts.length, 1);

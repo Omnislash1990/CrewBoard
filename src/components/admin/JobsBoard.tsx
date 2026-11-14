@@ -8,7 +8,8 @@ import { Spinner } from "@/components/ui/Spinner";
 import { deleteJob, normalizeJobInput, updateJob, type JobInput } from "@/lib/firebase/jobs";
 import { saveJobParts } from "@/lib/firebase/parts";
 import { tryGetFirebase } from "@/lib/firebase/client";
-import { formatDate, statusLabel } from "@/lib/format";
+import { statusLabel } from "@/lib/format";
+import { formatJobDate, isJobDate, jobDateFromDate } from "@/lib/jobs/date";
 import { partStatusLabel } from "@/lib/jobs/parts";
 import {
   draftsForDeletedJob,
@@ -126,7 +127,7 @@ export function JobsBoard({
                       <StatusBadge status={job.status} />
                     </td>
                     <td className="py-3 whitespace-nowrap pr-4 text-stone-500">
-                      {formatDate(job.createdAt)}
+                      {formatJobDate(job.jobDate, job.createdAt)}
                     </td>
                     <td className="py-3">
                       <button
@@ -164,6 +165,9 @@ function EditJobForm({
   const [client, setClient] = useState(job.client);
   const [title, setTitle] = useState(job.title);
   const [address, setAddress] = useState(job.address);
+  const [jobDate, setJobDate] = useState(
+    isJobDate(job.jobDate) ? job.jobDate : jobDateFromDate(job.createdAt),
+  );
   const [notes, setNotes] = useState(job.notes);
   const [status, setStatus] = useState<JobStatus>(job.status);
   const [assignedWorkerIds, setAssignedWorkerIds] = useState(job.assignedWorkerIds);
@@ -204,10 +208,15 @@ function EditJobForm({
       duration: job.duration,
       notes,
       status,
+      jobDate,
       assignedWorkerIds: crewIds(assignedWorkerIds, tradeParts),
     });
     if (!next.client || !next.title) {
       setError("Client and job title are required.");
+      return;
+    }
+    if (!isJobDate(next.jobDate)) {
+      setError("Choose a job date.");
       return;
     }
 
@@ -327,14 +336,21 @@ function EditJobForm({
             className="w-full resize-y rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
           />
         </label>
-        <div className="rounded-xl bg-white px-3 py-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+        <label className="block min-w-0 text-sm">
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500">
             Date
-          </p>
-          <p className="mt-0.5 text-sm font-medium text-stone-900">
-            {formatDate(job.createdAt)}
-          </p>
-        </div>
+          </span>
+          <input
+            type="date"
+            required
+            value={jobDate}
+            onChange={(event) => setJobDate(event.target.value)}
+            className="min-h-11 w-full min-w-0 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
+          />
+          <span className="mt-1 block font-medium text-stone-900">
+            {isJobDate(jobDate) ? formatJobDate(jobDate, job.createdAt) : "Choose a date"}
+          </span>
+        </label>
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500">
             Status
@@ -416,7 +432,7 @@ function EditJobForm({
         <button
           type="button"
           onClick={onSave}
-          disabled={saving || !client.trim() || !title.trim()}
+          disabled={saving || !client.trim() || !title.trim() || !isJobDate(jobDate)}
           className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-50"
         >
           {saving ? <Spinner className="h-4 w-4" /> : null}
