@@ -6,6 +6,8 @@ export type JobStatus =
   | "in_progress"
   | "completed";
 
+export type JobPartStatus = "open" | "completed" | "reviewed";
+
 export type AppUser = {
   uid: string;
   name: string;
@@ -14,10 +16,26 @@ export type AppUser = {
   phone: string;
 };
 
+export type JobPart = {
+  id: string;
+  trade: string;
+  assignedWorkerIds: string[];
+  status: JobPartStatus;
+  completedBy: string;
+};
+
+export type JobPartRecord = JobPart & {
+  jobId: string;
+};
+
 export type Job = {
   id: string;
   client: string;
   title: string;
+  address: string;
+  /**
+   * Legacy Toggl duration. Still stored so older jobs load. Not shown on the card.
+   */
   duration: string;
   notes: string;
   status: JobStatus;

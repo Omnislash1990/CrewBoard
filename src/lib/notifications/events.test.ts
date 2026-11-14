@@ -58,6 +58,15 @@ test("a content change notifies people who stayed on the job", () => {
   assert.equal(drafts[0]?.userId, "worker-1");
 });
 
+test("assignment alerts include the address and leave the time out", () => {
+  const drafts = draftsForNewJob("job-1", {
+    ...base,
+    address: "14 Chapel Street, Leeds",
+  });
+  assert.match(drafts[0]?.body ?? "", /14 Chapel Street, Leeds/);
+  assert.doesNotMatch(drafts[0]?.body ?? "", /3h/);
+});
+
 test("deleting a job notifies the crew who had it", () => {
   const drafts = draftsForDeletedJob("job-1", base);
   assert.equal(drafts.length, 1);

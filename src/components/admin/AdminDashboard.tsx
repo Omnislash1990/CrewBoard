@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { TogglParser } from "@/components/admin/TogglParser";
 import { JobsBoard } from "@/components/admin/JobsBoard";
 import { Logo } from "@/components/brand/Logo";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { jobFromDoc } from "@/lib/firebase/jobs";
 import { tryGetFirebase } from "@/lib/firebase/client";
-import { userFromDoc } from "@/lib/firebase/users";
+import { subscribeCrewWorkers } from "@/lib/firebase/users";
 import type { AppUser, Job } from "@/types";
 
 export function AdminDashboard() {
@@ -40,15 +34,7 @@ export function AdminDashboard() {
       },
     );
 
-    const workersQuery = query(
-      collection(firebase.db, "users"),
-      where("role", "==", "worker"),
-    );
-    const unsubWorkers = onSnapshot(workersQuery, (snap) => {
-      setWorkers(
-        snap.docs.map((docSnap) => userFromDoc(docSnap.id, docSnap.data())),
-      );
-    });
+    const unsubWorkers = subscribeCrewWorkers(firebase.db, setWorkers);
 
     return () => {
       unsubJobs();
@@ -131,7 +117,7 @@ export function AdminDashboard() {
         </div>
 
         <TogglParser workers={workers} />
-        <JobsBoard jobs={jobs} workers={workers} />
+        <JobsBoard jobs={jobs} workers={workers} parts={[]} />
       </main>
     </div>
   );

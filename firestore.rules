@@ -30,6 +30,22 @@ service cloud.firestore {
         && (!data.keys().hasAny(['phone']) || (data.phone is string && data.phone.size() < 40));
     }
 
+    // A console-created profile often has no uid field, or extra keys.
+    // An admin may fill uid in (it must be the document id) and drop the extras.
+    function uidStaysOrIsBackfilled(userId) {
+      return request.resource.data.uid == userId
+        && (
+          !resource.data.keys().hasAny(['uid'])
+          || resource.data.uid == userId
+        );
+    }
+
+    function roleChangeAllowed(userId) {
+      return !resource.data.keys().hasAny(['role'])
+        || request.resource.data.role == resource.data.role
+        || request.auth.uid != userId;
+    }
+
     function validJobStatus(status) {
       return status == 'unassigned'
         || status == 'assigned'
@@ -37,8 +53,13 @@ service cloud.firestore {
         || status == 'completed';
     }
 
+    function validAddress(data) {
+      return !data.keys().hasAny(['address'])
+        || (data.address is string && data.address.size() < 500);
+    }
+
     function validJob(data, jobId) {
-      return data.keys().hasOnly(['id', 'client', 'title', 'duration', 'notes', 'status', 'assignedWorkerIds', 'createdAt'])
+      return data.keys().hasOnly(['id', 'client', 'title', 'address', 'duration', 'notes', 'status', 'assignedWorkerIds', 'createdAt'])
         && data.keys().hasAll(['id', 'client', 'title', 'duration', 'notes', 'status', 'assignedWorkerIds', 'createdAt'])
         && data.id == jobId
         && data.client is string
@@ -47,6 +68,7 @@ service cloud.firestore {
         && data.title is string
         && data.title.size() > 0
         && data.title.size() < 300
+        && validAddress(data)
         && data.duration is string
         && data.duration.size() < 80
         && data.notes is string
@@ -55,6 +77,25 @@ service cloud.firestore {
         && data.assignedWorkerIds is list
         && data.assignedWorkerIds.size() < 50
         && data.createdAt is timestamp;
+    }
+
+    function validPartStatus(status) {
+      return status == 'open' || status == 'completed' || status == 'reviewed';
+    }
+
+    function validPart(data, partId) {
+      return data.keys().hasOnly(['id', 'trade', 'assignedWorkerIds', 'status', 'completedBy'])
+        && data.keys().hasAll(['id', 'trade', 'assignedWorkerIds', 'status', 'completedBy'])
+        && data.id == partId
+        && data.trade is string
+        && data.trade.size() > 0
+        && data.trade.size() < 80
+        && data.assignedWorkerIds is list
+        && data.assignedWorkerIds.size() > 0
+        && data.assignedWorkerIds.size() < 50
+        && validPartStatus(data.status)
+        && data.completedBy is string
+        && data.completedBy.size() < 128;
     }
 
     function validKind(kind) {
@@ -95,14 +136,11 @@ service cloud.firestore {
 
       // Another admin may change a role. Nobody can change their own role,
       // so the last admin cannot demote themselves and lock the office out.
+      // The write may also repair a hand-written profile (missing uid, extra keys).
       allow update: if isAdmin()
         && validUser(request.resource.data)
-        && request.resource.data.uid == userId
-        && request.resource.data.uid == resource.data.uid
-        && (
-          request.resource.data.role == resource.data.role
-          || request.auth.uid != userId
-        );
+        && uidStaysOrIsBackfilled(userId)
+        && roleChangeAllowed(userId);
 
       allow delete: if false;
     }
@@ -122,6 +160,33 @@ service cloud.firestore {
         && request.auth.uid in resource.data.assignedWorkerIds
         && validJobStatus(request.resource.data.status)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+
+      allow delete: if isAdmin();
+    }
+
+    // Recursive so a collection-group query can find one person's parts
+    // across jobs. Direct reads and writes of jobs/{jobId}/parts/{partId}
+    // use the same rules.
+    match /{path=**}/parts/{partId} {
+      allow read: if isAdmin()
+        || (signedIn() && request.auth.uid in resource.data.assignedWorkerIds);
+
+      allow create: if isAdmin() && validPart(request.resource.data, partId);
+
+      allow update: if isAdmin() && validPart(request.resource.data, partId);
+
+      // Only someone assigned to this part can mark it completed, and they
+      // cannot change the trade, the crew, or any other field.
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.assignedWorkerIds
+        && resource.data.status == 'open'
+        && validPart(request.resource.data, partId)
+        && request.resource.data.status == 'completed'
+        && request.resource.data.completedBy == request.auth.uid
+        && request.resource.data.trade == resource.data.trade
+        && request.resource.data.assignedWorkerIds == resource.data.assignedWorkerIds
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedBy']);
 
       allow delete: if isAdmin();
     }

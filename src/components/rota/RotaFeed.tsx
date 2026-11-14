@@ -8,15 +8,19 @@ import { WorkerJobCard } from "@/components/rota/WorkerJobCard";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { FullPageSpinner, Spinner } from "@/components/ui/Spinner";
 import { jobFromDoc, updateJobStatus } from "@/lib/firebase/jobs";
+import { completeJobPart, subscribeAssignedParts } from "@/lib/firebase/parts";
 import { tryGetFirebase } from "@/lib/firebase/client";
 import { formatDayLabel } from "@/lib/format";
-import type { Job, JobStatus } from "@/types";
+import type { Job, JobPartRecord, JobStatus } from "@/types";
 
 export function RotaFeed() {
   const { profile, signOut } = useAuth();
   const [jobs, setJobs] = useState<Job[] | null>(null);
+  const [parts, setParts] = useState<JobPartRecord[]>([]);
+  const [partsError, setPartsError] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [updatingPartId, setUpdatingPartId] = useState<string | null>(null);
 
   useEffect(() => {
     const firebase = tryGetFirebase();
@@ -41,7 +45,23 @@ export function RotaFeed() {
       },
     );
 
-    return unsubscribe;
+    const unsubParts = subscribeAssignedParts(
+      firebase.db,
+      profile.uid,
+      (next) => {
+        setParts(next);
+        setPartsError(false);
+      },
+      () => {
+        setParts([]);
+        setPartsError(true);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      unsubParts();
+    };
   }, [profile]);
 
   const visibleJobs = useMemo(() => {
@@ -50,6 +70,17 @@ export function RotaFeed() {
       ? jobs
       : jobs.filter((job) => job.status !== "completed");
   }, [jobs, showCompleted]);
+
+  async function onCompletePart(jobId: string, partId: string) {
+    const firebase = tryGetFirebase();
+    if (!firebase || !profile) return;
+    setUpdatingPartId(partId);
+    try {
+      await completeJobPart(firebase.db, jobId, partId, profile.uid);
+    } finally {
+      setUpdatingPartId(null);
+    }
+  }
 
   async function onStatus(jobId: string, status: JobStatus) {
     const firebase = tryGetFirebase();
@@ -91,6 +122,12 @@ export function RotaFeed() {
       </header>
 
       <main className="mx-auto max-w-lg space-y-3 px-4 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {partsError ? (
+          <p className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert">
+            Your trade parts could not be loaded. Ask the office to publish the latest Firestore rules.
+          </p>
+        ) : null}
+
         <label className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 text-sm text-stone-600 shadow-sm">
           <span>Show completed jobs</span>
           <input
@@ -115,8 +152,11 @@ export function RotaFeed() {
             <WorkerJobCard
               key={job.id}
               job={job}
+              parts={parts.filter((part) => part.jobId === job.id)}
               updating={updatingId === job.id}
+              updatingPartId={updatingPartId}
               onStatus={(status) => onStatus(job.id, status)}
+              onCompletePart={(partId) => onCompletePart(job.id, partId)}
             />
           ))
         )}

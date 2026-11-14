@@ -8,10 +8,12 @@ export function WorkerPicker({
   workers,
   selectedIds,
   onChange,
+  emptyMessage = "No workers yet. Anyone with the worker role appears here.",
 }: {
   workers: AppUser[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  emptyMessage?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -81,9 +83,7 @@ export function WorkerPicker({
       {open ? (
         <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-stone-200 bg-white p-1 shadow-xl">
           {workers.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-stone-500">
-              No workers in Firestore yet.
-            </p>
+            <p className="px-3 py-2 text-sm text-stone-500">{emptyMessage}</p>
           ) : (
             workers.map((worker) => {
               const checked = selectedIds.includes(worker.uid);

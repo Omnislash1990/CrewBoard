@@ -13,6 +13,7 @@ import type { Job, JobStatus } from "@/types";
 export type JobInput = {
   client: string;
   title: string;
+  address: string;
   duration: string;
   notes: string;
   status: JobStatus;
@@ -27,6 +28,7 @@ export function jobFromDoc(snap: QueryDocumentSnapshot): Job {
     id: snap.id,
     client: typeof data.client === "string" ? data.client : "",
     title: typeof data.title === "string" ? data.title : "",
+    address: typeof data.address === "string" ? data.address : "",
     duration: typeof data.duration === "string" ? data.duration : "",
     notes: typeof data.notes === "string" ? data.notes : "",
     status: isJobStatus(data.status) ? data.status : "unassigned",
@@ -51,6 +53,7 @@ export async function createJob(
     id: ref.id,
     client: input.client,
     title: input.title,
+    address: input.address.trim(),
     duration: input.duration,
     notes: input.notes,
     status,
@@ -68,6 +71,7 @@ export function normalizeJobInput(input: JobInput): JobInput {
   return {
     client: input.client.trim(),
     title: input.title.trim(),
+    address: input.address.trim(),
     duration: input.duration.trim(),
     notes: input.notes.trim(),
     assignedWorkerIds,

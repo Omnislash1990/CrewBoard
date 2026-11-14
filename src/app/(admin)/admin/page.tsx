@@ -14,8 +14,7 @@ export default function AdminPage() {
             Welcome, {profile?.name}
           </h1>
           <p className="mt-1 max-w-xl text-sm text-slate-500">
-            Manage the daily rota, paste Toggl time, and dispatch jobs to the
-            crew.
+            Manage the daily rota, paste jobs, and dispatch them to the crew.
           </p>
         </div>
         <button

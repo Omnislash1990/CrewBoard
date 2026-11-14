@@ -51,7 +51,7 @@ export function CrewManager() {
       setError(
         changeError instanceof FirebaseError &&
           changeError.code === "permission-denied"
-          ? "That role change was blocked. You can't change your own admin access."
+          ? "That role was not saved. You can't change your own admin access, and a hand-written profile needs the latest Firestore rules before it can be repaired."
           : "Could not update that role.",
       );
     } finally {
