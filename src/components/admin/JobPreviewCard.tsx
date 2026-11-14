@@ -2,11 +2,13 @@
 
 import { WorkerPicker } from "@/components/admin/WorkerPicker";
 import { Spinner } from "@/components/ui/Spinner";
+import { formatDate } from "@/lib/format";
 import type { AppUser } from "@/types";
 
 export type JobDraft = {
   client: string;
   title: string;
+  address: string;
   duration: string;
   notes: string;
   assignedWorkerIds: string[];
@@ -23,6 +25,7 @@ export function JobPreviewCard({
   error,
   onChange,
   onSave,
+  workersHint,
 }: {
   draft: JobDraft;
   workers: AppUser[];
@@ -31,6 +34,7 @@ export function JobPreviewCard({
   error?: string;
   onChange: (patch: Partial<JobDraft>) => void;
   onSave: () => void;
+  workersHint?: string;
 }) {
   return (
     <article className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -60,11 +64,27 @@ export function JobPreviewCard({
           value={draft.title}
           onChange={(value) => onChange({ title: value })}
         />
-        <Field
-          label="Time"
-          value={draft.duration}
-          onChange={(value) => onChange({ duration: value })}
-        />
+        <label className="block md:col-span-2">
+          <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-500">
+            Address
+          </span>
+          <textarea
+            value={draft.address}
+            onChange={(event) => onChange({ address: event.target.value })}
+            rows={2}
+            maxLength={400}
+            placeholder="Site address"
+            className="w-full resize-y rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
+          />
+        </label>
+        <div className="rounded-xl bg-stone-50 px-3 py-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+            Date
+          </p>
+          <p className="mt-0.5 text-sm font-medium text-stone-900">
+            {formatDate(new Date())}
+          </p>
+        </div>
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-500">
             Assign crew
@@ -72,6 +92,7 @@ export function JobPreviewCard({
           <WorkerPicker
             workers={workers}
             selectedIds={draft.assignedWorkerIds}
+            emptyMessage={workersHint}
             onChange={(assignedWorkerIds) => onChange({ assignedWorkerIds })}
           />
         </label>

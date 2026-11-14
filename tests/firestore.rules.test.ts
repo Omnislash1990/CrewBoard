@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, before, beforeEach, test } from "node:test";
 import {
@@ -7,11 +8,16 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
+  collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
   type Firestore,
 } from "firebase/firestore";
 
@@ -139,6 +145,131 @@ test("workers only see and update their own assigned jobs", async () => {
     updateDoc(doc(asDb("worker-1"), "jobs/job-1"), { title: "Stolen" }),
   );
   await assertFails(deleteDoc(doc(asDb("worker-1"), "jobs/job-1")));
+});
+
+test("a hand-written admin profile can be repaired and set as a worker", async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore() as unknown as Firestore;
+    await setDoc(doc(db, "users/hand-admin"), {
+      name: "Stephen",
+      email: "stephen@crew.test",
+      role: "admin",
+      active: true,
+    });
+  });
+
+  await assertFails(
+    updateDoc(doc(asDb("admin-1"), "users/hand-admin"), { role: "worker" }),
+  );
+  await assertSucceeds(
+    setDoc(doc(asDb("admin-1"), "users/hand-admin"), {
+      uid: "hand-admin",
+      name: "Stephen",
+      email: "stephen@crew.test",
+      phone: "",
+      role: "worker",
+    }),
+  );
+
+  const listed = await getDocs(
+    query(collection(asDb("admin-1"), "users"), where("role", "==", "worker")),
+  );
+  assert.ok(listed.docs.some((entry) => entry.id === "hand-admin"));
+});
+
+test("an admin can list every profile, including one with no role field", async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore() as unknown as Firestore;
+    await setDoc(doc(db, "users/no-role"), {
+      uid: "no-role",
+      name: "Alex",
+      email: "alex@crew.test",
+      phone: "",
+    });
+  });
+
+  const listed = await getDocs(collection(asDb("admin-1"), "users"));
+  assert.ok(listed.docs.some((entry) => entry.id === "no-role"));
+  const byRole = await getDocs(
+    query(collection(asDb("admin-1"), "users"), where("role", "==", "worker")),
+  );
+  assert.equal(
+    byRole.docs.some((entry) => entry.id === "no-role"),
+    false,
+  );
+});
+
+test("an admin can store a site address without dropping an existing time", async () => {
+  await assertSucceeds(
+    updateDoc(doc(asDb("admin-1"), "jobs/job-1"), {
+      address: "14 Chapel Street, Leeds",
+    }),
+  );
+  const saved = await getDoc(doc(asDb("admin-1"), "jobs/job-1"));
+  assert.equal(saved.data()?.address, "14 Chapel Street, Leeds");
+  assert.equal(saved.data()?.duration, "3h");
+});
+
+test("a worker can complete only a part assigned to them", async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore() as unknown as Firestore;
+    await setDoc(doc(db, "jobs/job-1/parts/carpentry"), {
+      id: "carpentry",
+      trade: "Carpenters",
+      assignedWorkerIds: ["worker-1"],
+      status: "open",
+      completedBy: "",
+    });
+    await setDoc(doc(db, "jobs/job-1/parts/paint"), {
+      id: "paint",
+      trade: "Painters",
+      assignedWorkerIds: ["worker-9"],
+      status: "open",
+      completedBy: "",
+    });
+  });
+
+  await assertSucceeds(
+    updateDoc(doc(asDb("worker-1"), "jobs/job-1/parts/carpentry"), {
+      status: "completed",
+      completedBy: "worker-1",
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(asDb("worker-1"), "jobs/job-1/parts/paint"), {
+      status: "completed",
+      completedBy: "worker-1",
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(asDb("worker-1"), "jobs/job-1/parts/carpentry"), {
+      trade: "Painters",
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(asDb("worker-1"), "jobs/job-1/parts/carpentry"), {
+      status: "reviewed",
+    }),
+  );
+  await assertFails(getDocs(collection(asDb("worker-1"), "jobs/job-1/parts")));
+  const ownParts = await getDocs(
+    query(
+      collectionGroup(asDb("worker-1"), "parts"),
+      where("assignedWorkerIds", "array-contains", "worker-1"),
+    ),
+  );
+  assert.deepEqual(
+    ownParts.docs.map((entry) => entry.id),
+    ["carpentry"],
+  );
+
+  await assertSucceeds(
+    updateDoc(doc(asDb("admin-1"), "jobs/job-1/parts/carpentry"), {
+      status: "reviewed",
+    }),
+  );
+  const allParts = await getDocs(collectionGroup(asDb("admin-1"), "parts"));
+  assert.equal(allParts.size, 2);
 });
 
 test("an admin can edit and delete a dispatched job", async () => {

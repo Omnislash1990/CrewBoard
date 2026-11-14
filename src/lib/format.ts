@@ -5,6 +5,12 @@ const dateTime = new Intl.DateTimeFormat("en-GB", {
   timeStyle: "short",
 });
 
+const dateOnly = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
 const dayLabel = new Intl.DateTimeFormat("en-GB", {
   weekday: "long",
   day: "numeric",
@@ -13,6 +19,10 @@ const dayLabel = new Intl.DateTimeFormat("en-GB", {
 
 export function formatDateTime(date: Date) {
   return dateTime.format(date);
+}
+
+export function formatDate(date: Date) {
+  return dateOnly.format(date);
 }
 
 export function formatDayLabel(date = new Date()) {

@@ -1,6 +1,17 @@
 import { FirebaseError } from "firebase/app";
-import { doc, getDoc, setDoc, updateDoc, type Firestore } from "firebase/firestore";
 import type { User } from "firebase/auth";
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  setDoc,
+  where,
+  type Firestore,
+  type QuerySnapshot,
+} from "firebase/firestore";
+import { canonicalRole } from "@/lib/auth/roles";
 import type { AppUser, UserRole } from "@/types";
 
 export async function fetchUserProfile(
@@ -11,13 +22,12 @@ export async function fetchUserProfile(
   if (!snap.exists()) return null;
 
   const data = snap.data();
-  const role: UserRole = data.role === "admin" ? "admin" : "worker";
 
   return {
     uid,
     name: typeof data.name === "string" ? data.name : "",
     email: typeof data.email === "string" ? data.email : "",
-    role,
+    role: canonicalRole(data.role),
     phone: typeof data.phone === "string" ? data.phone : "",
   };
 }
@@ -74,23 +84,98 @@ export async function ensureWorkerProfile(
   }
 }
 
+function clip(value: unknown, max: number) {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+/**
+ * Rewrites a complete profile. A role patch on its own is rejected when a
+ * hand-written document is missing `uid` or still has extra keys, so the
+ * person never becomes a worker and the crew picker cannot see them.
+ */
 export async function setUserRole(
   db: Firestore,
   userId: string,
   role: UserRole,
 ) {
-  await updateDoc(doc(db, "users", userId), { role });
+  const ref = doc(db, "users", userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    throw new Error("That profile does not exist.");
+  }
+  const data = snap.data();
+  const name = clip(data.name, 180) || "Crew member";
+  await setDoc(ref, {
+    uid: userId,
+    name,
+    email: clip(data.email, 300),
+    phone: clip(data.phone, 30),
+    role,
+  });
 }
 
 export function userFromDoc(
   id: string,
   data: Record<string, unknown>,
 ): AppUser {
+  const fieldUid = typeof data.uid === "string" ? data.uid.trim() : "";
   return {
-    uid: typeof data.uid === "string" ? data.uid : id,
-    name: typeof data.name === "string" ? data.name : "Unnamed",
+    uid: fieldUid || id,
+    name: typeof data.name === "string" && data.name.trim() ? data.name : "Unnamed",
     email: typeof data.email === "string" ? data.email : "",
-    role: data.role === "admin" ? "admin" : "worker",
+    role: canonicalRole(data.role),
     phone: typeof data.phone === "string" ? data.phone : "",
+  };
+}
+
+function workersFromSnapshot(snap: QuerySnapshot) {
+  return snap.docs
+    .map((docSnap) => userFromDoc(docSnap.id, docSnap.data()))
+    .filter((person) => person.role === "worker")
+    .sort((a, b) => a.name.localeCompare(b.name, "en-GB"));
+}
+
+/**
+ * Admins can read the whole crew. Filtering here (instead of
+ * `where("role", "==", "worker")`) keeps profiles whose role is missing or
+ * not exactly the string "worker". If that read is denied, fall back to the
+ * role query so a rules mismatch does not leave the picker blank.
+ */
+export function subscribeCrewWorkers(
+  db: Firestore,
+  onWorkers: (workers: AppUser[]) => void,
+  onError?: (error: unknown) => void,
+) {
+  const users = collection(db, "users");
+  let active = true;
+  let current = () => {};
+
+  const listen = (useRoleQuery: boolean) => {
+    const source = useRoleQuery
+      ? query(users, where("role", "==", "worker"))
+      : users;
+    return onSnapshot(
+      source,
+      (snap) => {
+        if (!active) return;
+        onWorkers(workersFromSnapshot(snap));
+      },
+      (error) => {
+        console.error("Crew list failed", error);
+        if (!active) return;
+        if (!useRoleQuery) {
+          current();
+          current = listen(true);
+          return;
+        }
+        onError?.(error);
+      },
+    );
+  };
+
+  current = listen(false);
+  return () => {
+    active = false;
+    current();
   };
 }

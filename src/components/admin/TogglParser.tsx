@@ -10,7 +10,13 @@ import { publishNotifications } from "@/lib/notifications/publish";
 import { parseTogglText, SAMPLE_TOGGL_PASTE } from "@/lib/parser/toggl";
 import type { AppUser } from "@/types";
 
-export function TogglParser({ workers }: { workers: AppUser[] }) {
+export function TogglParser({
+  workers,
+  workersHint,
+}: {
+  workers: AppUser[];
+  workersHint?: string;
+}) {
   const [raw, setRaw] = useState("");
   const [drafts, setDrafts] = useState<JobDraft[]>([]);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
@@ -30,6 +36,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
       parsed.map((job) => ({
         client: job.client,
         title: job.title,
+        address: "",
         duration: job.duration,
         notes: job.notes,
         assignedWorkerIds: [],
@@ -66,6 +73,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
       const jobId = await createJob(firebase.db, {
         client: draft.client.trim(),
         title: draft.title.trim(),
+        address: draft.address.trim(),
         duration: draft.duration.trim(),
         notes: draft.notes.trim(),
         assignedWorkerIds: draft.assignedWorkerIds,
@@ -76,6 +84,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
           draftsForNewJob(jobId, {
             client: draft.client.trim(),
             title: draft.title.trim(),
+            address: draft.address.trim(),
             duration: draft.duration.trim(),
             notes: draft.notes.trim(),
             status: draft.assignedWorkerIds.length > 0 ? "assigned" : "unassigned",
@@ -128,7 +137,8 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
             <code className="rounded bg-white px-1.5 py-0.5 text-stone-700">
               Client - Job - Time - Notes
             </code>
-            . Preview the card, pick crew, then save to the live rota.
+            . Add the site address on the card. Older lines that include a
+            time still load; the time is not shown.
           </p>
         </div>
         <button
@@ -176,6 +186,7 @@ export function TogglParser({ workers }: { workers: AppUser[] }) {
             key={`${draft.raw}-${index}`}
             draft={draft}
             workers={workers}
+            workersHint={workersHint}
             saving={savingIndex === index || bulkSaving}
             saved={Boolean(saved[index])}
             error={errors[index]}

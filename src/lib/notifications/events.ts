@@ -3,6 +3,7 @@ import type { JobStatus, NotificationKind } from "@/types";
 export type JobNotice = {
   client: string;
   title: string;
+  address?: string;
   duration: string;
   notes: string;
   status: JobStatus;
@@ -22,11 +23,11 @@ function uniqueIds(ids: string[]) {
 }
 
 function assignedCopy(job: JobNotice) {
-  const time = job.duration.trim();
+  const address = job.address?.trim();
   return {
     title: `New job: ${job.client}`,
-    body: time
-      ? `${job.title} (${time}) is on your rota.`
+    body: address
+      ? `${job.title} is on your rota. Address: ${address}.`
       : `${job.title} is on your rota.`,
   };
 }
@@ -76,7 +77,7 @@ export function draftsForJobUpdate(
   const contentChanged =
     before.client !== after.client ||
     before.title !== after.title ||
-    before.duration !== after.duration ||
+    (before.address ?? "") !== (after.address ?? "") ||
     before.notes !== after.notes ||
     before.status !== after.status;
 
