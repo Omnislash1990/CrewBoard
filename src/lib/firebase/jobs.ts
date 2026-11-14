@@ -8,6 +8,7 @@ import {
   type Firestore,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
+import { isJobDate } from "@/lib/jobs/date";
 import type { Job, JobStatus } from "@/types";
 
 export type JobInput = {
@@ -18,6 +19,7 @@ export type JobInput = {
   notes: string;
   status: JobStatus;
   assignedWorkerIds: string[];
+  jobDate: string;
 };
 
 export function jobFromDoc(snap: QueryDocumentSnapshot): Job {
@@ -35,6 +37,10 @@ export function jobFromDoc(snap: QueryDocumentSnapshot): Job {
     assignedWorkerIds: Array.isArray(data.assignedWorkerIds)
       ? data.assignedWorkerIds.filter((id: unknown) => typeof id === "string")
       : [],
+    jobDate:
+      typeof data.jobDate === "string" && isJobDate(data.jobDate)
+        ? data.jobDate
+        : "",
     createdAt,
   };
 }
@@ -49,6 +55,11 @@ export async function createJob(
     input.status ??
     (assignedWorkerIds.length > 0 ? "assigned" : "unassigned");
 
+  const jobDate = input.jobDate.trim();
+  if (!isJobDate(jobDate)) {
+    throw new Error("Choose a job date.");
+  }
+
   await setDoc(ref, {
     id: ref.id,
     client: input.client,
@@ -58,6 +69,7 @@ export async function createJob(
     notes: input.notes,
     status,
     assignedWorkerIds,
+    jobDate,
     createdAt: serverTimestamp(),
   });
 
@@ -75,12 +87,16 @@ export function normalizeJobInput(input: JobInput): JobInput {
     duration: input.duration.trim(),
     notes: input.notes.trim(),
     assignedWorkerIds,
+    jobDate: input.jobDate.trim(),
     status: statusForAssignees(input.status, assignedWorkerIds),
   };
 }
 
 export async function updateJob(db: Firestore, jobId: string, input: JobInput) {
   const next = normalizeJobInput(input);
+  if (!isJobDate(next.jobDate)) {
+    throw new Error("Choose a job date.");
+  }
   await updateDoc(doc(db, "jobs", jobId), next);
   return next;
 }

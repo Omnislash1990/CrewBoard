@@ -11,6 +11,7 @@ import { jobFromDoc, updateJobStatus } from "@/lib/firebase/jobs";
 import { completeJobPart, subscribeAssignedParts } from "@/lib/firebase/parts";
 import { tryGetFirebase } from "@/lib/firebase/client";
 import { formatDayLabel } from "@/lib/format";
+import { sortJobsByDate } from "@/lib/jobs/date";
 import type { Job, JobPartRecord, JobStatus } from "@/types";
 
 export function RotaFeed() {
@@ -34,9 +35,7 @@ export function RotaFeed() {
     const unsubscribe = onSnapshot(
       jobsQuery,
       (snap) => {
-        const next = snap.docs
-          .map(jobFromDoc)
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const next = sortJobsByDate(snap.docs.map(jobFromDoc));
         setJobs(next);
       },
       (error) => {

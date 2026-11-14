@@ -7,6 +7,7 @@ import { JobsBoard } from "@/components/admin/JobsBoard";
 import { Logo } from "@/components/brand/Logo";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { jobFromDoc } from "@/lib/firebase/jobs";
+import { sortJobsByDate } from "@/lib/jobs/date";
 import { tryGetFirebase } from "@/lib/firebase/client";
 import { subscribeCrewWorkers } from "@/lib/firebase/users";
 import type { AppUser, Job } from "@/types";
@@ -27,7 +28,7 @@ export function AdminDashboard() {
     const unsubJobs = onSnapshot(
       jobsQuery,
       (snap) => {
-        setJobs(snap.docs.map(jobFromDoc));
+        setJobs(sortJobsByDate(snap.docs.map(jobFromDoc)));
       },
       (error) => {
         console.error("Jobs listener failed", error);

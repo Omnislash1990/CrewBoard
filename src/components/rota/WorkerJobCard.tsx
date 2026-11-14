@@ -2,7 +2,7 @@
 
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Spinner } from "@/components/ui/Spinner";
-import { formatDate } from "@/lib/format";
+import { formatJobDate } from "@/lib/jobs/date";
 import { partStatusLabel } from "@/lib/jobs/parts";
 import type { Job, JobPartRecord, JobStatus } from "@/types";
 
@@ -55,7 +55,7 @@ export function WorkerJobCard({
         <div className="rounded-2xl bg-stone-50 px-3 py-2">
           <dt className="text-xs uppercase tracking-wide text-stone-500">Date</dt>
           <dd className="mt-0.5 font-medium text-stone-900">
-            {formatDate(job.createdAt)}
+            {formatJobDate(job.jobDate, job.createdAt)}
           </dd>
         </div>
       </dl>

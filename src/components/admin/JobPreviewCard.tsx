@@ -2,7 +2,7 @@
 
 import { WorkerPicker } from "@/components/admin/WorkerPicker";
 import { Spinner } from "@/components/ui/Spinner";
-import { formatDate } from "@/lib/format";
+import { formatJobDate, isJobDate } from "@/lib/jobs/date";
 import type { AppUser } from "@/types";
 
 export type JobDraft = {
@@ -11,6 +11,7 @@ export type JobDraft = {
   address: string;
   duration: string;
   notes: string;
+  jobDate: string;
   assignedWorkerIds: string[];
   valid: boolean;
   error?: string;
@@ -77,14 +78,23 @@ export function JobPreviewCard({
             className="w-full resize-y rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
           />
         </label>
-        <div className="rounded-xl bg-stone-50 px-3 py-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+        <label className="block min-w-0">
+          <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-500">
             Date
-          </p>
-          <p className="mt-0.5 text-sm font-medium text-stone-900">
-            {formatDate(new Date())}
-          </p>
-        </div>
+          </span>
+          <input
+            type="date"
+            required
+            value={draft.jobDate}
+            onChange={(event) => onChange({ jobDate: event.target.value })}
+            className="min-h-11 w-full min-w-0 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none ring-orange-700/30 focus:border-orange-700 focus:ring-4"
+          />
+          <span className="mt-1 block text-sm font-medium text-stone-900">
+            {isJobDate(draft.jobDate)
+              ? formatJobDate(draft.jobDate, new Date())
+              : "Choose a date"}
+          </span>
+        </label>
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-stone-500">
             Assign crew
@@ -117,7 +127,14 @@ export function JobPreviewCard({
         <button
           type="button"
           onClick={onSave}
-          disabled={!draft.valid || saving || saved || !draft.client || !draft.title}
+          disabled={
+            !draft.valid ||
+            saving ||
+            saved ||
+            !draft.client ||
+            !draft.title ||
+            !isJobDate(draft.jobDate)
+          }
           className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? <Spinner className="h-4 w-4" /> : null}
